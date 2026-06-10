@@ -5,10 +5,15 @@ import com.ccy.xhscommenthelper.domain.ProfileInfo
 
 class ProfileInfoReader {
     fun read(root: AccessibilityNodeInfo?): ProfileInfo {
-        val texts = NodeFinder.flatten(root)
-            .mapNotNull { node -> node.text?.toString()?.trim() }
-            .filter { text -> text.isNotBlank() }
+        val nodeTexts = NodeFinder.flatten(root).map { node ->
+            ProfileNodeText(
+                text = node.text?.toString(),
+                contentDescription = node.contentDescription?.toString(),
+                viewIdResourceName = node.viewIdResourceName,
+                className = node.className?.toString()
+            )
+        }
 
-        return ProfileInfoTextExtractor.extract(texts)
+        return ProfileInfoTextExtractor.extractFromNodes(nodeTexts)
     }
 }

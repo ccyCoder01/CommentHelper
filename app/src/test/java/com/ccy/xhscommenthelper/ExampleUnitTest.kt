@@ -1,6 +1,7 @@
 package com.ccy.xhscommenthelper
 
 import com.ccy.xhscommenthelper.accessibility.CommentTextFilter
+import com.ccy.xhscommenthelper.accessibility.ProfileNodeText
 import com.ccy.xhscommenthelper.accessibility.ProfileInfoTextExtractor
 import com.ccy.xhscommenthelper.domain.MessageBuilder
 import org.junit.Assert.assertEquals
@@ -46,6 +47,46 @@ class ExampleUnitTest {
         )
 
         assertEquals("女", info.visibleGender)
-        assertEquals("IP属地：浙江", info.ipLocation)
+        assertEquals("浙江", info.ipLocation)
+    }
+
+    @Test
+    fun profileInfoExtractorParsesIpColonFormats() {
+        assertEquals("天津", ProfileInfoTextExtractor.extract(listOf("IP：天津")).ipLocation)
+        assertEquals("天津", ProfileInfoTextExtractor.extract(listOf("IP: 天津")).ipLocation)
+        assertEquals("浙江", ProfileInfoTextExtractor.extract(listOf("IP属地：浙江")).ipLocation)
+        assertEquals("广东", ProfileInfoTextExtractor.extract(listOf("IP 属地 广东")).ipLocation)
+    }
+
+    @Test
+    fun profileInfoExtractorParsesGenderFromContentDescription() {
+        val maleText = ProfileInfoTextExtractor.extractFromNodes(
+            listOf(ProfileNodeText(contentDescription = "男"))
+        )
+        val maleSymbol = ProfileInfoTextExtractor.extractFromNodes(
+            listOf(ProfileNodeText(contentDescription = "♂"))
+        )
+
+        assertEquals("男", maleText.visibleGender)
+        assertEquals("男", maleSymbol.visibleGender)
+    }
+
+    @Test
+    fun profileInfoExtractorParsesGenderFromViewId() {
+        val info = ProfileInfoTextExtractor.extractFromNodes(
+            listOf(ProfileNodeText(viewIdResourceName = "com.xingin.xhs:id/gender_female"))
+        )
+
+        assertEquals("女", info.visibleGender)
+    }
+
+    @Test
+    fun profileInfoExtractorKeepsUnknownValuesNull() {
+        val info = ProfileInfoTextExtractor.extractFromNodes(
+            listOf(ProfileNodeText(text = "小红书号：123", viewIdResourceName = "com.xingin.xhs:id/avatar"))
+        )
+
+        assertEquals(null, info.visibleGender)
+        assertEquals(null, info.ipLocation)
     }
 }

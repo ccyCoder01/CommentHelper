@@ -4,22 +4,24 @@ import com.ccy.xhscommenthelper.domain.ProfileInfo
 
 object ProfileInfoTextExtractor {
     fun extract(texts: List<String>): ProfileInfo {
-        val normalized = texts
-            .map { it.trim() }
+        return extractFromNodes(texts.map { ProfileNodeText(text = it) })
+    }
+
+    fun extractFromNodes(nodes: List<ProfileNodeText>): ProfileInfo {
+        val textValues = nodes.flatMap { node ->
+            listOfNotNull(node.text, node.contentDescription)
+        }.map { it.trim() }
             .filter { it.isNotBlank() }
             .distinct()
 
-        val visibleGender = normalized.firstNotNullOfOrNull { text ->
-            when {
-                text == "男" || text.contains("性别：男") || text.contains("性别 男") -> "男"
-                text == "女" || text.contains("性别：女") || text.contains("性别 女") -> "女"
-                else -> null
-            }
-        }
+        val idValues = nodes.mapNotNull { it.viewIdResourceName?.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
 
-        val ipLocation = normalized.firstOrNull { text ->
-            text.contains("IP属地") || text.contains("IP 属地")
-        }
+        val visibleGender = textValues.firstNotNullOfOrNull { parseGenderFromText(it) }
+            ?: idValues.firstNotNullOfOrNull { parseGenderFromId(it) }
+
+        val ipLocation = textValues.firstNotNullOfOrNull { parseIpLocation(it) }
 
         val summary = buildList {
             add("性别：${visibleGender ?: "未识别"}")
@@ -31,5 +33,48 @@ object ProfileInfoTextExtractor {
             ipLocation = ipLocation,
             summary = summary
         )
+    }
+
+    private fun parseGenderFromText(text: String): String? {
+        val normalized = text.trim()
+        return when {
+            normalized == "男" ||
+                normalized == "♂" ||
+                normalized.contains("男性", ignoreCase = true) ||
+                normalized.contains("性别：男") ||
+                normalized.contains("性别:男") ||
+                normalized.contains("性别 男") ||
+                normalized.equals("male", ignoreCase = true) -> "男"
+
+            normalized == "女" ||
+                normalized == "♀" ||
+                normalized.contains("女性", ignoreCase = true) ||
+                normalized.contains("性别：女") ||
+                normalized.contains("性别:女") ||
+                normalized.contains("性别 女") ||
+                normalized.equals("female", ignoreCase = true) -> "女"
+
+            else -> null
+        }
+    }
+
+    private fun parseGenderFromId(viewId: String): String? {
+        val normalized = viewId.lowercase()
+        val femaleTokens = listOf("gender_female", "female", "woman")
+        val maleTokens = listOf("gender_male", "male", "man")
+        return when {
+            femaleTokens.any { normalized.contains(it) } -> "女"
+            maleTokens.any { normalized.contains(it) } -> "男"
+            else -> null
+        }
+    }
+
+    private fun parseIpLocation(text: String): String? {
+        val match = Regex("""IP\s*(?:属地)?\s*[:：]?\s*(.+)""", RegexOption.IGNORE_CASE)
+            .find(text.trim())
+            ?: return null
+        return match.groupValues.getOrNull(1)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 }
