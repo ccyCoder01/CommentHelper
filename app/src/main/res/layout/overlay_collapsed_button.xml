@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/collapsedButton"
+    android:layout_width="48dp"
+    android:layout_height="48dp"
+    android:background="#CCF44336"
+    android:gravity="center"
+    android:text="筛"
+    android:textColor="#FFFFFFFF"
+    android:textSize="20sp"
+    android:textStyle="bold" />
