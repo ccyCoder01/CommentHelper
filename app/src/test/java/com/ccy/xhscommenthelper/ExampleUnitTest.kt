@@ -1,6 +1,7 @@
 package com.ccy.xhscommenthelper
 
 import com.ccy.xhscommenthelper.accessibility.CommentTextFilter
+import com.ccy.xhscommenthelper.accessibility.ProfileInfoTextExtractor
 import com.ccy.xhscommenthelper.domain.MessageBuilder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,5 +37,15 @@ class ExampleUnitTest {
         )
 
         assertEquals("这个多少钱呀", candidate)
+    }
+
+    @Test
+    fun profileInfoExtractorReadsVisibleGenderAndIpOnly() {
+        val info = ProfileInfoTextExtractor.extract(
+            listOf("小红书号：123", "女", "IP属地：浙江")
+        )
+
+        assertEquals("女", info.visibleGender)
+        assertEquals("IP属地：浙江", info.ipLocation)
     }
 }

@@ -17,12 +17,15 @@ import com.ccy.xhscommenthelper.R
 import com.ccy.xhscommenthelper.accessibility.AccessibilityBridge
 import com.ccy.xhscommenthelper.accessibility.CommentReader
 import com.ccy.xhscommenthelper.accessibility.MessageFiller
+import com.ccy.xhscommenthelper.accessibility.ProfileInfoReader
 import com.ccy.xhscommenthelper.accessibility.XhsActionExecutor
 import com.ccy.xhscommenthelper.data.RecentLeadStore
 import com.ccy.xhscommenthelper.data.SettingsRepository
 import com.ccy.xhscommenthelper.domain.Lead
 import com.ccy.xhscommenthelper.domain.LeadStatus
 import com.ccy.xhscommenthelper.domain.MessageBuilder
+import com.ccy.xhscommenthelper.domain.CommentCandidate
+import com.ccy.xhscommenthelper.domain.ProfileInfo
 import com.ccy.xhscommenthelper.util.ClipboardHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,10 +47,14 @@ class FloatingOverlayService : Service() {
     private lateinit var commentReader: CommentReader
     private lateinit var actionExecutor: XhsActionExecutor
     private lateinit var messageFiller: MessageFiller
+    private lateinit var profileInfoReader: ProfileInfoReader
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var recentLeadStore: RecentLeadStore
 
     private var currentLead = Lead()
+    private var commentQueue = emptyList<CommentCandidate>()
+    private var queueCursor = -1
+    private var currentProfileInfo = ProfileInfo()
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
@@ -61,6 +68,7 @@ class FloatingOverlayService : Service() {
         commentReader = CommentReader(clipboardHelper)
         actionExecutor = XhsActionExecutor()
         messageFiller = MessageFiller(clipboardHelper)
+        profileInfoReader = ProfileInfoReader()
         settingsRepository = SettingsRepository(applicationContext)
         recentLeadStore = RecentLeadStore(applicationContext)
         showCollapsed()
@@ -111,7 +119,7 @@ class FloatingOverlayService : Service() {
         expanded = true
         removeCurrentView()
         val view = layoutInflater.inflate(R.layout.overlay_floating_panel, null)
-        params = createLayoutParams(dpToPx(260))
+        params = createLayoutParams(dpToPx(300))
         bindDrag(view)
         bindExpandedActions(view)
         currentView = view
@@ -152,11 +160,13 @@ class FloatingOverlayService : Service() {
     private fun bindExpandedActions(view: View) {
         view.findViewById<Button>(R.id.readCommentButton).setOnClickListener { onReadCommentClicked() }
         view.findViewById<Button>(R.id.openProfileButton).setOnClickListener { onOpenProfileClicked() }
+        view.findViewById<Button>(R.id.readProfileInfoButton).setOnClickListener { onReadProfileInfoClicked() }
         view.findViewById<Button>(R.id.suitableButton).setOnClickListener { onSuitableClicked() }
         view.findViewById<Button>(R.id.unsuitableButton).setOnClickListener { onUnsuitableClicked() }
         view.findViewById<Button>(R.id.generateMessageButton).setOnClickListener { onGenerateMessageClicked() }
         view.findViewById<Button>(R.id.copyMessageButton).setOnClickListener { onCopyMessageClicked() }
         view.findViewById<Button>(R.id.fillMessageButton).setOnClickListener { onFillMessageClicked() }
+        view.findViewById<Button>(R.id.openMessageEntryButton).setOnClickListener { onOpenMessageEntryClicked() }
         view.findViewById<Button>(R.id.collapseButton).setOnClickListener { showCollapsed() }
     }
 
@@ -167,7 +177,21 @@ class FloatingOverlayService : Service() {
             return
         }
 
-        val comment = commentReader.readCurrentComment(service.getRoot())
+        val root = service.getRoot()
+        val candidates = commentReader.readVisibleComments(root)
+        if (candidates.isNotEmpty()) {
+            commentQueue = candidates
+            queueCursor = -1
+            val comment = candidates.first().text
+            currentLead = Lead(comment = comment, status = LeadStatus.COMMENT_READ)
+            currentProfileInfo = ProfileInfo()
+            serviceScope.launch { recentLeadStore.saveComment(comment) }
+            updateExpandedView()
+            showToast("已读取${candidates.size}条当前已加载评论/回复")
+            return
+        }
+
+        val comment = commentReader.readCurrentComment(root)
         if (comment.isNullOrBlank()) {
             currentLead = currentLead.copy(status = LeadStatus.ERROR, updatedAt = System.currentTimeMillis())
             showToast("未读取到评论，可手动复制评论后再点击读取。")
@@ -175,6 +199,9 @@ class FloatingOverlayService : Service() {
         }
 
         currentLead = Lead(comment = comment, status = LeadStatus.COMMENT_READ)
+        commentQueue = listOf(CommentCandidate(comment, 0))
+        queueCursor = -1
+        currentProfileInfo = ProfileInfo()
         serviceScope.launch { recentLeadStore.saveComment(comment) }
         updateExpandedView()
     }
@@ -186,17 +213,45 @@ class FloatingOverlayService : Service() {
             return
         }
 
-        val ok = actionExecutor.openProfile(service.getRoot())
+        val comment = nextQueuedComment()
+        if (comment == null) {
+            showToast("请先读取评论/回复列表")
+            return
+        }
+
+        val ok = actionExecutor.openProfileForComment(service.getRoot(), comment.text)
         if (ok) {
             currentLead = currentLead.copy(
+                comment = comment.text,
                 profileOpened = true,
                 status = LeadStatus.PROFILE_OPENED,
                 updatedAt = System.currentTimeMillis()
             )
+            currentProfileInfo = ProfileInfo()
+            serviceScope.launch { recentLeadStore.saveComment(comment.text) }
+            updateExpandedView()
             showToast("已尝试打开主页")
         } else {
             showToast("未能自动打开主页，请手动点击头像或昵称。")
         }
+    }
+
+    private fun nextQueuedComment(): CommentCandidate? {
+        if (commentQueue.isEmpty()) return null
+        queueCursor = (queueCursor + 1).coerceAtMost(commentQueue.lastIndex)
+        return commentQueue.getOrNull(queueCursor)
+    }
+
+    private fun onReadProfileInfoClicked() {
+        val service = AccessibilityBridge.service
+        if (service == null) {
+            showToast("请先开启辅助功能权限，否则无法读取主页信息。")
+            return
+        }
+
+        currentProfileInfo = profileInfoReader.read(service.getRoot())
+        updateExpandedView()
+        showToast("已读取当前主页公开信息")
     }
 
     private fun onSuitableClicked() {
@@ -282,10 +337,29 @@ class FloatingOverlayService : Service() {
         }
     }
 
+    private fun onOpenMessageEntryClicked() {
+        val service = AccessibilityBridge.service
+        if (service == null) {
+            showToast("请先开启辅助功能权限，否则无法打开私信入口。")
+            return
+        }
+
+        val ok = actionExecutor.openMessageEntry(service.getRoot())
+        if (ok) {
+            showToast("已尝试打开私信入口")
+        } else {
+            showToast("未找到私信入口，请手动进入聊天框。")
+        }
+    }
+
     private fun updateExpandedView(view: View? = currentView) {
         if (!expanded || view == null) return
         view.findViewById<TextView>(R.id.commentTextView).text =
             "当前评论：${currentLead.comment ?: "暂无"}"
+        view.findViewById<TextView>(R.id.queueTextView).text =
+            "评论队列：${if (queueCursor >= 0) queueCursor + 1 else 0}/${commentQueue.size}"
+        view.findViewById<TextView>(R.id.profileInfoTextView).text =
+            "主页信息：${currentProfileInfo.summary.ifBlank { "暂无" }}"
         view.findViewById<TextView>(R.id.messageTextView).text =
             "私信：${currentLead.message ?: "暂无"}"
     }
