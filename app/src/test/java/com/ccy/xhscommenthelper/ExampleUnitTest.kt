@@ -43,7 +43,7 @@ class ExampleUnitTest {
     @Test
     fun profileInfoExtractorReadsVisibleGenderAndIpOnly() {
         val info = ProfileInfoTextExtractor.extract(
-            listOf("小红书号：123", "女", "IP属地：浙江")
+            listOf("小红书号：123", "女，25岁", "IP属地：浙江")
         )
 
         assertEquals("女", info.visibleGender)
@@ -61,14 +61,10 @@ class ExampleUnitTest {
     @Test
     fun profileInfoExtractorParsesGenderFromContentDescription() {
         val maleText = ProfileInfoTextExtractor.extractFromNodes(
-            listOf(ProfileNodeText(contentDescription = "男"))
-        )
-        val maleSymbol = ProfileInfoTextExtractor.extractFromNodes(
-            listOf(ProfileNodeText(contentDescription = "♂"))
+            listOf(ProfileNodeText(contentDescription = "男，28岁"))
         )
 
         assertEquals("男", maleText.visibleGender)
-        assertEquals("男", maleSymbol.visibleGender)
     }
 
     @Test

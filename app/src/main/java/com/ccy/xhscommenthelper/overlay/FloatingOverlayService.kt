@@ -17,6 +17,7 @@ import com.ccy.xhscommenthelper.R
 import com.ccy.xhscommenthelper.accessibility.AccessibilityBridge
 import com.ccy.xhscommenthelper.accessibility.CommentReader
 import com.ccy.xhscommenthelper.accessibility.MessageFiller
+import com.ccy.xhscommenthelper.accessibility.NodeDebugDumper
 import com.ccy.xhscommenthelper.accessibility.ProfileInfoReader
 import com.ccy.xhscommenthelper.accessibility.XhsActionExecutor
 import com.ccy.xhscommenthelper.data.RecentLeadStore
@@ -178,6 +179,7 @@ class FloatingOverlayService : Service() {
         }
 
         val root = service.getRoot()
+        NodeDebugDumper.dump(root, "read_comments")
         val candidates = commentReader.readVisibleComments(root)
         if (candidates.isNotEmpty()) {
             commentQueue = candidates
