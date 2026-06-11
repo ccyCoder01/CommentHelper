@@ -38,9 +38,9 @@ object ProfileInfoTextExtractor {
     private fun parseGenderFromText(text: String): String? {
         val normalized = text.trim()
         return when {
-            normalized.contains("男", ignoreCase = true) -> "男"
+            normalized.contains("男，", ignoreCase = true) -> "男"
 
-            normalized.contains("女", ignoreCase = true) -> "女"
+            normalized.contains("女，", ignoreCase = true) -> "女"
 
             else -> null
         }
