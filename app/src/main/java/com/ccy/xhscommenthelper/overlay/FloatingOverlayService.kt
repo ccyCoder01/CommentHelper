@@ -22,9 +22,9 @@ import com.ccy.xhscommenthelper.accessibility.ProfileInfoReader
 import com.ccy.xhscommenthelper.accessibility.XhsActionExecutor
 import com.ccy.xhscommenthelper.data.RecentLeadStore
 import com.ccy.xhscommenthelper.data.SettingsRepository
+import com.ccy.xhscommenthelper.domain.CommentCandidate
 import com.ccy.xhscommenthelper.domain.Lead
 import com.ccy.xhscommenthelper.domain.LeadStatus
-import com.ccy.xhscommenthelper.domain.CommentCandidate
 import com.ccy.xhscommenthelper.domain.ProfileInfo
 import com.ccy.xhscommenthelper.util.ClipboardHelper
 import kotlinx.coroutines.CoroutineScope
@@ -159,10 +159,14 @@ class FloatingOverlayService : Service() {
     }
 
     private fun bindExpandedActions(view: View) {
-        view.findViewById<Button>(R.id.readCommentButton).setOnClickListener { onReadCommentClicked() }
-        view.findViewById<Button>(R.id.openProfileButton).setOnClickListener { onOpenProfileClicked() }
-        view.findViewById<Button>(R.id.readProfileInfoButton).setOnClickListener { onReadProfileInfoClicked() }
-        view.findViewById<Button>(R.id.openMessageEntryButton).setOnClickListener { onOpenMessageEntryClicked() }
+        view.findViewById<Button>(R.id.readCommentButton)
+            .setOnClickListener { onReadCommentClicked() }
+        view.findViewById<Button>(R.id.openProfileButton)
+            .setOnClickListener { onOpenProfileClicked() }
+        view.findViewById<Button>(R.id.readProfileInfoButton)
+            .setOnClickListener { onReadProfileInfoClicked() }
+        view.findViewById<Button>(R.id.openMessageEntryButton)
+            .setOnClickListener { onOpenMessageEntryClicked() }
         view.findViewById<Button>(R.id.collapseButton).setOnClickListener { showCollapsed() }
     }
 
@@ -195,7 +199,8 @@ class FloatingOverlayService : Service() {
 
         val comment = commentReader.readCurrentComment(root)
         if (comment.isNullOrBlank()) {
-            currentLead = currentLead.copy(status = LeadStatus.ERROR, updatedAt = System.currentTimeMillis())
+            currentLead =
+                currentLead.copy(status = LeadStatus.ERROR, updatedAt = System.currentTimeMillis())
             showToast("未读取到评论，可手动复制评论后再点击读取。")
             return
         }
@@ -221,7 +226,8 @@ class FloatingOverlayService : Service() {
             return
         }
 
-        val ok = actionExecutor.openProfileForComment(service.getRoot(), comment.text, comment.nickname)
+        val ok =
+            actionExecutor.openProfileForComment(service.getRoot(), comment.text, comment.nickname)
         if (ok) {
             currentLead = currentLead.copy(
                 nickname = comment.nickname,
@@ -296,6 +302,11 @@ class FloatingOverlayService : Service() {
                 updatedAt = System.currentTimeMillis()
             )
             showToast("已填入固定话术，请人工确认发送。")
+            if (actionExecutor.openClick(service.getRoot())) {
+                showToast("已发送。")
+            } else {
+                showToast("发送失败。")
+            }
         } else {
             clipboardHelper.copyText(fixedText)
             showToast("自动填入失败，已复制固定话术，请手动粘贴。")
