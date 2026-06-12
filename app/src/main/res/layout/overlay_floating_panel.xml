@@ -65,59 +65,11 @@
         android:textColor="#FF333333"
         android:textSize="12sp" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/suitableButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="合适" />
-
-        <Button
-            android:id="@+id/unsuitableButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="不合适" />
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/messageTextView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:maxLines="4"
-        android:text="私信：暂无"
-        android:textColor="#FF333333"
-        android:textSize="13sp" />
-
-    <Button
-        android:id="@+id/generateMessageButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="生成私信" />
-
-    <Button
-        android:id="@+id/copyMessageButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="复制私信" />
-
     <Button
         android:id="@+id/openMessageEntryButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="打开私信入口" />
-
-    <Button
-        android:id="@+id/fillMessageButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="填入私信框" />
 
     <Button
         android:id="@+id/collapseButton"

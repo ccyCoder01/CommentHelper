@@ -22,10 +22,25 @@ class CommentReader(private val clipboardHelper: ClipboardHelper) {
     }
 
     fun readVisibleComments(root: AccessibilityNodeInfo?): List<CommentCandidate> {
-        return NodeFinder.flatten(root)
+        val visibleNodes = NodeFinder.flatten(root)
             .filter { node -> isCommentOrReplyTextNode(node) }
-            .mapNotNull { node -> node.text?.toString()?.trim() }
-            .filter { text -> text.isNotBlank() }
+            .mapNotNull { node -> node.toVisibleTextNode() }
+
+        val blocks = VisibleCommentBlockParser.parse(visibleNodes)
+        if (blocks.isNotEmpty()) {
+            return blocks
+                .distinctBy { block -> block.nickname }
+                .mapIndexed { index, block ->
+                    CommentCandidate(
+                        text = block.commentText,
+                        index = index,
+                        nickname = block.nickname
+                    )
+                }
+        }
+
+        return visibleNodes
+            .map { node -> node.text.trim() }
             .filterNot { text -> CommentTextFilter.isNoiseText(text) }
             .filter { text -> text.length in 2..120 }
             .distinct()
@@ -35,8 +50,24 @@ class CommentReader(private val clipboardHelper: ClipboardHelper) {
     private fun isCommentOrReplyTextNode(node: AccessibilityNodeInfo): Boolean {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
-        return node.viewIdResourceName == COMMENT_TEXT_VIEW_ID &&
+        val text = node.text?.toString()?.trim()
+        return !text.isNullOrBlank() &&
+            node.viewIdResourceName == COMMENT_TEXT_VIEW_ID &&
             node.className?.toString() == COMMENT_TEXT_CLASS_NAME &&
             !bounds.isEmpty
+    }
+
+    private fun AccessibilityNodeInfo.toVisibleTextNode(): VisibleTextNode? {
+        val text = this.text?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val bounds = Rect()
+        getBoundsInScreen(bounds)
+        if (bounds.isEmpty) return null
+        return VisibleTextNode(
+            text = text,
+            left = bounds.left,
+            top = bounds.top,
+            right = bounds.right,
+            bottom = bounds.bottom
+        )
     }
 }

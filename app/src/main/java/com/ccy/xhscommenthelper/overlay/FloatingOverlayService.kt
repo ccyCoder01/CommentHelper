@@ -24,7 +24,6 @@ import com.ccy.xhscommenthelper.data.RecentLeadStore
 import com.ccy.xhscommenthelper.data.SettingsRepository
 import com.ccy.xhscommenthelper.domain.Lead
 import com.ccy.xhscommenthelper.domain.LeadStatus
-import com.ccy.xhscommenthelper.domain.MessageBuilder
 import com.ccy.xhscommenthelper.domain.CommentCandidate
 import com.ccy.xhscommenthelper.domain.ProfileInfo
 import com.ccy.xhscommenthelper.util.ClipboardHelper
@@ -32,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -162,11 +162,6 @@ class FloatingOverlayService : Service() {
         view.findViewById<Button>(R.id.readCommentButton).setOnClickListener { onReadCommentClicked() }
         view.findViewById<Button>(R.id.openProfileButton).setOnClickListener { onOpenProfileClicked() }
         view.findViewById<Button>(R.id.readProfileInfoButton).setOnClickListener { onReadProfileInfoClicked() }
-        view.findViewById<Button>(R.id.suitableButton).setOnClickListener { onSuitableClicked() }
-        view.findViewById<Button>(R.id.unsuitableButton).setOnClickListener { onUnsuitableClicked() }
-        view.findViewById<Button>(R.id.generateMessageButton).setOnClickListener { onGenerateMessageClicked() }
-        view.findViewById<Button>(R.id.copyMessageButton).setOnClickListener { onCopyMessageClicked() }
-        view.findViewById<Button>(R.id.fillMessageButton).setOnClickListener { onFillMessageClicked() }
         view.findViewById<Button>(R.id.openMessageEntryButton).setOnClickListener { onOpenMessageEntryClicked() }
         view.findViewById<Button>(R.id.collapseButton).setOnClickListener { showCollapsed() }
     }
@@ -184,12 +179,17 @@ class FloatingOverlayService : Service() {
         if (candidates.isNotEmpty()) {
             commentQueue = candidates
             queueCursor = -1
-            val comment = candidates.first().text
-            currentLead = Lead(comment = comment, status = LeadStatus.COMMENT_READ)
+            val firstCandidate = candidates.first()
+            val comment = firstCandidate.text
+            currentLead = Lead(
+                nickname = firstCandidate.nickname,
+                comment = comment,
+                status = LeadStatus.COMMENT_READ
+            )
             currentProfileInfo = ProfileInfo()
             serviceScope.launch { recentLeadStore.saveComment(comment) }
             updateExpandedView()
-            showToast("已读取${candidates.size}条当前已加载评论/回复")
+            showToast("已读取${candidates.size}条当前已加载主页候选")
             return
         }
 
@@ -221,9 +221,10 @@ class FloatingOverlayService : Service() {
             return
         }
 
-        val ok = actionExecutor.openProfileForComment(service.getRoot(), comment.text)
+        val ok = actionExecutor.openProfileForComment(service.getRoot(), comment.text, comment.nickname)
         if (ok) {
             currentLead = currentLead.copy(
+                nickname = comment.nickname,
                 comment = comment.text,
                 profileOpened = true,
                 status = LeadStatus.PROFILE_OPENED,
@@ -251,92 +252,11 @@ class FloatingOverlayService : Service() {
             return
         }
 
-        currentProfileInfo = profileInfoReader.read(service.getRoot())
+        val root = service.getRoot()
+        NodeDebugDumper.dump(root, "read_profile_info")
+        currentProfileInfo = profileInfoReader.read(root)
         updateExpandedView()
         showToast("已读取当前主页公开信息")
-    }
-
-    private fun onSuitableClicked() {
-        currentLead = currentLead.copy(
-            suitable = true,
-            status = LeadStatus.MARKED_SUITABLE,
-            updatedAt = System.currentTimeMillis()
-        )
-        showToast("已标记合适")
-    }
-
-    private fun onUnsuitableClicked() {
-        currentLead = currentLead.copy(
-            suitable = false,
-            status = LeadStatus.MARKED_UNSUITABLE,
-            updatedAt = System.currentTimeMillis()
-        )
-        showToast("已标记不合适")
-    }
-
-    private fun onGenerateMessageClicked() {
-        serviceScope.launch {
-            val comment = currentLead.comment
-            if (comment.isNullOrBlank()) {
-                showToast("请先读取评论")
-                return@launch
-            }
-            if (currentLead.suitable != true) {
-                showToast("请先标记为合适。")
-                return@launch
-            }
-
-            val settings = settingsRepository.settingsFlow.first()
-            val message = MessageBuilder.build(comment, settings.fixedText)
-            currentLead = currentLead.copy(
-                message = message,
-                status = LeadStatus.MESSAGE_GENERATED,
-                updatedAt = System.currentTimeMillis()
-            )
-            recentLeadStore.saveMessage(message)
-            updateExpandedView()
-        }
-    }
-
-    private fun onCopyMessageClicked() {
-        val message = currentLead.message
-        if (message.isNullOrBlank()) {
-            showToast("请先生成私信")
-            return
-        }
-
-        clipboardHelper.copyText(message)
-        currentLead = currentLead.copy(
-            status = LeadStatus.MESSAGE_COPIED,
-            updatedAt = System.currentTimeMillis()
-        )
-        showToast("已复制私信")
-    }
-
-    private fun onFillMessageClicked() {
-        val message = currentLead.message
-        if (message.isNullOrBlank()) {
-            showToast("请先生成私信")
-            return
-        }
-
-        val service = AccessibilityBridge.service
-        if (service == null) {
-            showToast("请先开启辅助功能权限，否则无法读取当前评论。")
-            return
-        }
-
-        val ok = messageFiller.fillMessage(service.getRoot(), message)
-        if (ok) {
-            currentLead = currentLead.copy(
-                status = LeadStatus.MESSAGE_FILLED,
-                updatedAt = System.currentTimeMillis()
-            )
-            showToast("已填入私信框，请人工确认发送。")
-        } else {
-            clipboardHelper.copyText(message)
-            showToast("自动填入失败，已复制私信，请手动粘贴。")
-        }
     }
 
     private fun onOpenMessageEntryClicked() {
@@ -349,21 +269,47 @@ class FloatingOverlayService : Service() {
         val ok = actionExecutor.openMessageEntry(service.getRoot())
         if (ok) {
             showToast("已尝试打开私信入口")
+            serviceScope.launch {
+                delay(800)
+                NodeDebugDumper.dump(service.getRoot(), "read_message_entry")
+                fillMessageOnCurrentScreen(service)
+            }
         } else {
             showToast("未找到私信入口，请手动进入聊天框。")
+        }
+    }
+
+    private suspend fun fillMessageOnCurrentScreen(service: com.ccy.xhscommenthelper.accessibility.XhsAccessibilityService) {
+        val fixedText = settingsRepository.settingsFlow.first().fixedText.trim()
+        if (fixedText.isBlank()) {
+            showToast("请先在主界面配置固定话术。")
+            return
+        }
+
+        NodeDebugDumper.dump(service.getRoot(), "before_fill_message")
+        val ok = messageFiller.fillMessage(service.getRoot(), fixedText)
+        delay(300)
+        NodeDebugDumper.dump(service.getRoot(), "after_fill_message")
+        if (ok) {
+            currentLead = currentLead.copy(
+                status = LeadStatus.MESSAGE_FILLED,
+                updatedAt = System.currentTimeMillis()
+            )
+            showToast("已填入固定话术，请人工确认发送。")
+        } else {
+            clipboardHelper.copyText(fixedText)
+            showToast("自动填入失败，已复制固定话术，请手动粘贴。")
         }
     }
 
     private fun updateExpandedView(view: View? = currentView) {
         if (!expanded || view == null) return
         view.findViewById<TextView>(R.id.commentTextView).text =
-            "当前评论：${currentLead.comment ?: "暂无"}"
+            "当前主页：${currentLead.nickname ?: "未识别"}\n当前评论：${currentLead.comment ?: "暂无"}"
         view.findViewById<TextView>(R.id.queueTextView).text =
             "评论队列：${if (queueCursor >= 0) queueCursor + 1 else 0}/${commentQueue.size}"
         view.findViewById<TextView>(R.id.profileInfoTextView).text =
             "主页信息：${currentProfileInfo.summary.ifBlank { "暂无" }}"
-        view.findViewById<TextView>(R.id.messageTextView).text =
-            "私信：${currentLead.message ?: "暂无"}"
     }
 
     private fun showToast(message: String) {

@@ -28,7 +28,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var accessibilityPermissionTextView: TextView
     private lateinit var fixedTextEditText: EditText
     private lateinit var recentCommentTextView: TextView
-    private lateinit var recentMessageTextView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,7 +56,6 @@ class MainActivity : AppCompatActivity() {
         accessibilityPermissionTextView = findViewById(R.id.accessibilityPermissionTextView)
         fixedTextEditText = findViewById(R.id.fixedTextEditText)
         recentCommentTextView = findViewById(R.id.recentCommentTextView)
-        recentMessageTextView = findViewById(R.id.recentMessageTextView)
     }
 
     private fun bindActions() {
@@ -98,7 +96,6 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             recentLeadStore.recentLeadFlow.collect { recent ->
                 recentCommentTextView.text = "最近评论：${recent.comment.ifBlank { "暂无" }}"
-                recentMessageTextView.text = "最近私信内容：${recent.message.ifBlank { "暂无" }}"
             }
         }
     }

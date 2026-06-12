@@ -9,6 +9,7 @@ object NodeDebugDumper {
 
     fun dump(root: AccessibilityNodeInfo?, scene: String) {
         val nodes = NodeFinder.flatten(root)
+            .filter { node -> node.text?.toString()?.isNotBlank() == true }
         Log.d(TAG, "===== $scene node dump start, count=${nodes.size} =====")
         nodes.forEachIndexed { index, node ->
             val bounds = Rect()
@@ -18,7 +19,10 @@ object NodeDebugDumper {
                 "#$index text=${node.text.safeValue()} " +
                     "viewId=${node.viewIdResourceName.safeValue()} " +
                     "class=${node.className.safeValue()} " +
-                    "bounds=${bounds.toShortString()}"
+                    "bounds=${bounds.toShortString()} " +
+                    "clickable=${node.isClickable} " +
+                    "enabled=${node.isEnabled} " +
+                    "visibleToUser=${node.isVisibleToUser}"
             )
         }
         Log.d(TAG, "===== $scene node dump end =====")

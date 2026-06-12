@@ -104,12 +104,5 @@
             android:text="最近评论：暂无"
             android:textSize="15sp" />
 
-        <TextView
-            android:id="@+id/recentMessageTextView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="最近私信内容：暂无"
-            android:textSize="15sp" />
     </LinearLayout>
 </ScrollView>
