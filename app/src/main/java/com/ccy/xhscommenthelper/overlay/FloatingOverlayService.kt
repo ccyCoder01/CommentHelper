@@ -2,9 +2,15 @@ package com.ccy.xhscommenthelper.overlay
 
 import android.app.Service
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -32,6 +38,7 @@ import com.ccy.xhscommenthelper.util.ClipboardHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -58,6 +65,9 @@ class FloatingOverlayService : Service() {
     private var commentQueue = emptyList<CommentCandidate>()
     private var queueCursor = -1
     private var currentProfileInfo = ProfileInfo()
+    private var autoLoopJob: Job? = null
+    private var autoLoopRunning = false
+    private var autoLoopStopReason: String? = null
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
@@ -122,7 +132,7 @@ class FloatingOverlayService : Service() {
         expanded = true
         removeCurrentView()
         val view = layoutInflater.inflate(R.layout.overlay_floating_panel, null)
-        params = createLayoutParams(dpToPx(180))
+        params = createLayoutParams(dpToPx(140))
         bindDrag(view)
         bindExpandedActions(view)
         currentView = view
@@ -161,69 +171,146 @@ class FloatingOverlayService : Service() {
     }
 
     private fun bindExpandedActions(view: View) {
-        view.findViewById<Button>(R.id.readCommentButton)
-            .setOnClickListener { onReadCommentClicked() }
         view.findViewById<Button>(R.id.openProfileButton)
-            .setOnClickListener { onOpenProfileClicked() }
-        view.findViewById<Button>(R.id.readProfileInfoButton)
-            .setOnClickListener { onReadProfileInfoClicked() }
+            .setOnClickListener { onNextClicked() }
         view.findViewById<Button>(R.id.collapseButton).setOnClickListener { showCollapsed() }
     }
 
-    private fun onReadCommentClicked() {
-        val service = AccessibilityBridge.service
-        if (service == null) {
-            showToast("请先开启辅助功能权限，否则无法读取当前评论。")
-            return
+    private suspend fun readCommentsOnCurrentScreen(service: XhsAccessibilityService): Boolean {
+        val result = readFilteredCommentsOnCurrentScreen(service)
+        if (result.filteredCandidates.isEmpty()) {
+            commentQueue = emptyList()
+            queueCursor = -1
+            currentLead = currentLead.copy(
+                status = LeadStatus.ERROR,
+                updatedAt = System.currentTimeMillis()
+            )
+            currentProfileInfo = ProfileInfo()
+            updateExpandedView()
+            val message = if (result.rawCount > 0) {
+                "已读取${result.rawCount}条，白名单保留0条"
+            } else {
+                "未读取到评论，可手动复制评论后再点击下一个。"
+            }
+            showToast(message)
+            return false
         }
 
+        applyCommentQueue(result.filteredCandidates)
+        showToast("已读取${result.rawCount}条，白名单保留${result.filteredCandidates.size}条")
+        return true
+    }
+
+    private suspend fun readFilteredCommentsOnCurrentScreen(
+        service: XhsAccessibilityService
+    ): CommentReadResult {
         val root = service.getRoot()
         NodeDebugDumper.dump(root, "read_comments")
         val candidates = commentReader.readVisibleComments(root)
         if (candidates.isNotEmpty()) {
-            commentQueue = candidates
-            queueCursor = -1
-            val firstCandidate = candidates.first()
-            val comment = firstCandidate.text
-            currentLead = Lead(
-                nickname = firstCandidate.nickname,
-                comment = comment,
-                status = LeadStatus.COMMENT_READ
+            return CommentReadResult(
+                rawCount = candidates.size,
+                filteredCandidates = filterByCommentWhitelist(candidates)
             )
-            currentProfileInfo = ProfileInfo()
-            serviceScope.launch { recentLeadStore.saveComment(comment) }
-            updateExpandedView()
-            showToast("已读取${candidates.size}条当前已加载主页候选")
-            return
         }
 
         val comment = commentReader.readCurrentComment(root)
         if (comment.isNullOrBlank()) {
-            currentLead =
-                currentLead.copy(status = LeadStatus.ERROR, updatedAt = System.currentTimeMillis())
-            showToast("未读取到评论，可手动复制评论后再点击读取。")
-            return
+            return CommentReadResult(rawCount = 0, filteredCandidates = emptyList())
         }
 
-        currentLead = Lead(comment = comment, status = LeadStatus.COMMENT_READ)
-        commentQueue = listOf(CommentCandidate(comment, 0))
+        val fallbackCandidates = listOf(CommentCandidate(comment, 0))
+        return CommentReadResult(
+            rawCount = fallbackCandidates.size,
+            filteredCandidates = filterByCommentWhitelist(fallbackCandidates)
+        )
+    }
+
+    private suspend fun applyCommentQueue(candidates: List<CommentCandidate>) {
+        commentQueue = candidates
         queueCursor = -1
+        val firstCandidate = candidates.first()
+        currentLead = Lead(
+            nickname = firstCandidate.nickname,
+            comment = firstCandidate.text,
+            status = LeadStatus.COMMENT_READ
+        )
         currentProfileInfo = ProfileInfo()
-        serviceScope.launch { recentLeadStore.saveComment(comment) }
+        recentLeadStore.saveComment(firstCandidate.text)
         updateExpandedView()
     }
 
-    private fun onOpenProfileClicked() {
+    private suspend fun filterByCommentWhitelist(
+        candidates: List<CommentCandidate>
+    ): List<CommentCandidate> {
+        val whitelist = settingsRepository.settingsFlow.first()
+            .commentWhitelist
+            .map { keyword -> keyword.trim() }
+            .filter { keyword -> keyword.isNotBlank() }
+        if (whitelist.isEmpty()) {
+            return candidates.mapIndexed { index, candidate -> candidate.copy(index = index) }
+        }
+        return candidates
+            .filter { candidate -> whitelist.any { keyword -> candidate.text.contains(keyword) } }
+            .mapIndexed { index, candidate -> candidate.copy(index = index) }
+    }
+
+    private fun onNextClicked() {
         val service = AccessibilityBridge.service
         if (service == null) {
             showToast("请先开启辅助功能权限，否则无法读取当前评论。")
             return
         }
 
+        if (autoLoopRunning) {
+            stopAutoLoop("已停止")
+            return
+        }
+
+        startAutoLoop(service)
+    }
+
+    private fun startAutoLoop(service: XhsAccessibilityService) {
+        autoLoopRunning = true
+        autoLoopStopReason = null
+        updateExpandedView()
+        showToast("已开始循环")
+        autoLoopJob = serviceScope.launch {
+            while (autoLoopRunning) {
+                if (commentQueue.isEmpty() && !readCommentsOnCurrentScreen(service)) {
+                    stopAutoLoop("未读取到可处理的评论，循环已停止")
+                    return@launch
+                }
+                if (!openNextProfile(service)) {
+                    stopAutoLoop("未能继续处理，循环已停止")
+                    return@launch
+                }
+                autoLoopStopReason?.let { reason ->
+                    stopAutoLoop(reason)
+                    return@launch
+                }
+                delay(600)
+            }
+        }
+    }
+
+    private fun stopAutoLoop(message: String? = null) {
+        autoLoopRunning = false
+        autoLoopJob?.cancel()
+        autoLoopJob = null
+        commentQueue = emptyList()
+        queueCursor = -1
+        currentLead = Lead()
+        currentProfileInfo = ProfileInfo()
+        updateExpandedView()
+        message?.let { showToast(it) }
+    }
+
+    private suspend fun openNextProfile(service: XhsAccessibilityService): Boolean {
         val comment = nextQueuedComment()
         if (comment == null) {
-            showToast("请先读取评论")
-            return
+            showToast("未读取到可处理的评论")
+            return false
         }
 
         val ok =
@@ -237,11 +324,15 @@ class FloatingOverlayService : Service() {
                 updatedAt = System.currentTimeMillis()
             )
             currentProfileInfo = ProfileInfo()
-            serviceScope.launch { recentLeadStore.saveComment(comment.text) }
+            recentLeadStore.saveComment(comment.text)
             updateExpandedView()
             showToast("已尝试打开主页")
+            delay(1200)
+            readProfileInfoOnCurrentScreen(service)
+            return true
         } else {
             showToast("未能自动打开主页，请手动点击头像或昵称。")
+            return false
         }
     }
 
@@ -251,39 +342,81 @@ class FloatingOverlayService : Service() {
         return commentQueue.getOrNull(queueCursor)
     }
 
-    private fun onReadProfileInfoClicked() {
-        val service = AccessibilityBridge.service
-        if (service == null) {
-            showToast("请先开启辅助功能权限，否则无法读取主页信息。")
-            return
-        }
-
+    private suspend fun readProfileInfoOnCurrentScreen(service: XhsAccessibilityService) {
         val root = service.getRoot()
         NodeDebugDumper.dump(root, "read_profile_info")
         currentProfileInfo = profileInfoReader.read(root)
         updateExpandedView()
         showToast("已读取当前主页公开信息")
-        serviceScope.launch {
-            val settings = settingsRepository.settingsFlow.first()
-            if (matchesProfileCriteria(currentProfileInfo, settings)) {
-                openMessageEntryAndFill(service)
-            } else {
-                showToast("主页信息不符合画像，已跳过私信入口。")
+        val settings = settingsRepository.settingsFlow.first()
+        if (matchesProfileCriteria(currentProfileInfo, settings)) {
+            openMessageEntryAndFill(service)
+            performBackSteps(service, 2)
+        } else {
+            showToast("主页信息不符合画像，已跳过私信入口。")
+            performBackSteps(service, 1)
+        }
+        swipeToNextAreaIfQueueConsumed(service)
+    }
+
+    private suspend fun openMessageEntryAndFill(service: XhsAccessibilityService) {
+        val ok = actionExecutor.openMessageEntry(service.getRoot())
+        if (ok) {
+            showToast("已尝试打开私信入口")
+            delay(800)
+            NodeDebugDumper.dump(service.getRoot(), "read_message_entry")
+            fillMessageOnCurrentScreen(service)
+        } else {
+            showToast("未找到私信入口，请手动进入聊天框。")
+        }
+    }
+
+    private suspend fun performBackSteps(service: XhsAccessibilityService, count: Int) {
+        delay(1000)
+        repeat(count) { index ->
+            service.performBack()
+            if (index < count - 1) {
+                delay(350)
             }
         }
     }
 
-    private fun openMessageEntryAndFill(service: XhsAccessibilityService) {
-        val ok = actionExecutor.openMessageEntry(service.getRoot())
+    private suspend fun swipeToNextAreaIfQueueConsumed(service: XhsAccessibilityService) {
+        if (commentQueue.isEmpty() || queueCursor < commentQueue.lastIndex) return
+        autoLoopStopReason = null
+        val previousSignature = commentQueueSignature(commentQueue)
+        delay(1000)
+        val ok = service.performSwipeToNextArea()
         if (ok) {
-            showToast("已尝试打开私信入口")
-            serviceScope.launch {
-                delay(800)
-                NodeDebugDumper.dump(service.getRoot(), "read_message_entry")
-                fillMessageOnCurrentScreen(service)
+            delay(3000)
+            val result = readFilteredCommentsOnCurrentScreen(service)
+            if (result.filteredCandidates.isEmpty()) {
+                commentQueue = emptyList()
+                queueCursor = -1
+                currentLead = Lead()
+                currentProfileInfo = ProfileInfo()
+                updateExpandedView()
+                showToast("已滑动到下一区域，未读取到新队列")
+                autoLoopStopReason = "未读取到新队列，循环已停止"
+                return
+            }
+
+            applyCommentQueue(result.filteredCandidates)
+            if (commentQueueSignature(result.filteredCandidates) == previousSignature) {
+                showToast("滑动后内容未变化")
+                autoLoopStopReason = "滑动后内容未变化，循环已停止"
+            } else {
+                showToast("已滑动并读取${result.filteredCandidates.size}条")
             }
         } else {
-            showToast("未找到私信入口，请手动进入聊天框。")
+            showToast("队列已消费完，滑动失败")
+            autoLoopStopReason = "滑动失败，循环已停止"
+        }
+    }
+
+    private fun commentQueueSignature(candidates: List<CommentCandidate>): String {
+        return candidates.joinToString(separator = "\n") { candidate ->
+            "${candidate.nickname.orEmpty()}|${candidate.text}"
         }
     }
 
@@ -326,8 +459,51 @@ class FloatingOverlayService : Service() {
 
     private fun updateExpandedView(view: View? = currentView) {
         if (!expanded || view == null) return
+        view.findViewById<Button>(R.id.openProfileButton).text =
+            if (autoLoopRunning) "停止" else "下一个"
         view.findViewById<TextView>(R.id.queueTextView).text =
             "评论队列：${if (queueCursor >= 0) queueCursor + 1 else 0}/${commentQueue.size}"
+        view.findViewById<TextView>(R.id.queuePreviewTextView).text = queuePreviewText()
+    }
+
+    private fun queuePreviewText(): CharSequence {
+        if (commentQueue.isEmpty()) return "暂无队列"
+        val visibleQueue = visibleQueuePreviewItems()
+        val lines = visibleQueue.map { candidate ->
+            val position = candidate.index + 1
+            val nickname = candidate.nickname?.takeIf { it.isNotBlank() } ?: "未识别"
+            "$position. $nickname"
+        }
+        val text = lines.joinToString(separator = "\n")
+        val currentLineIndex = visibleQueue.indexOfFirst { candidate -> candidate.index == queueCursor }
+        if (currentLineIndex < 0) return text
+
+        val start = lines.take(currentLineIndex).sumOf { line -> line.length + 1 }
+        val end = start + lines[currentLineIndex].length
+        return SpannableString(text).apply {
+            setSpan(
+                ForegroundColorSpan(Color.rgb(244, 67, 54)),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            setSpan(
+                StyleSpan(Typeface.BOLD),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+    }
+
+    private fun visibleQueuePreviewItems(): List<CommentCandidate> {
+        if (commentQueue.size <= MAX_QUEUE_PREVIEW_COUNT) return commentQueue
+        val currentIndex = commentQueue.indexOfFirst { candidate -> candidate.index == queueCursor }
+            .takeIf { it >= 0 }
+            ?: 0
+        val start = currentIndex
+            .coerceAtMost((commentQueue.size - MAX_QUEUE_PREVIEW_COUNT).coerceAtLeast(0))
+        return commentQueue.drop(start).take(MAX_QUEUE_PREVIEW_COUNT)
     }
 
     private fun showToast(message: String) {
@@ -336,5 +512,14 @@ class FloatingOverlayService : Service() {
 
     private fun dpToPx(dp: Int): Int {
         return (dp * resources.displayMetrics.density).toInt()
+    }
+
+    private data class CommentReadResult(
+        val rawCount: Int,
+        val filteredCandidates: List<CommentCandidate>
+    )
+
+    private companion object {
+        const val MAX_QUEUE_PREVIEW_COUNT = 6
     }
 }

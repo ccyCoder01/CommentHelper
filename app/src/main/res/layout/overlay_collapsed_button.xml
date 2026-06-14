@@ -3,16 +3,18 @@
     android:id="@+id/collapsedButton"
     android:layout_width="56dp"
     android:layout_height="56dp"
-    android:background="@drawable/overlay_orb_background"
+    android:background="@android:color/transparent"
     android:contentDescription="匹配助手悬浮球"
     android:elevation="10dp">
 
     <ImageView
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_gravity="center"
-        android:alpha="0.88"
+        android:alpha="0.92"
+        android:background="@drawable/overlay_orb_background"
         android:contentDescription="@null"
+        android:padding="8dp"
         android:src="@drawable/ic_overlay_compass" />
 
 </FrameLayout>

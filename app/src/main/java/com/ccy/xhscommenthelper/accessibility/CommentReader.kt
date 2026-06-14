@@ -29,7 +29,6 @@ class CommentReader(private val clipboardHelper: ClipboardHelper) {
         val blocks = VisibleCommentBlockParser.parse(visibleNodes)
         if (blocks.isNotEmpty()) {
             return blocks
-                .distinctBy { block -> block.nickname }
                 .mapIndexed { index, block ->
                     CommentCandidate(
                         text = block.commentText,
@@ -42,8 +41,7 @@ class CommentReader(private val clipboardHelper: ClipboardHelper) {
         return visibleNodes
             .map { node -> node.text.trim() }
             .filterNot { text -> CommentTextFilter.isNoiseText(text) }
-            .filter { text -> text.length in 2..120 }
-            .distinct()
+            .filter { text -> text.length in 1..120 }
             .mapIndexed { index, text -> CommentCandidate(text = text, index = index) }
     }
 

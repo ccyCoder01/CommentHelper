@@ -7,6 +7,7 @@ object CommentTextFilter {
         "回复",
         "分享",
         "收藏",
+        "赞",
         "说点什么",
         "搜索",
         "首页",
@@ -17,7 +18,6 @@ object CommentTextFilter {
 
     fun isNoiseText(text: String): Boolean {
         val normalized = text.trim()
-        if (normalized.length <= 1) return true
         return normalized in exactNoiseTexts
     }
 
@@ -27,6 +27,6 @@ object CommentTextFilter {
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .filterNot { isNoiseText(it) }
-            .firstOrNull { it.length in 2..120 }
+            .firstOrNull { it.length in 1..120 }
     }
 }
