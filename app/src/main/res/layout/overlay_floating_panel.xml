@@ -1,37 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/overlayPanel"
-    android:layout_width="300dp"
+    android:layout_width="180dp"
     android:layout_height="wrap_content"
-    android:background="#EEFFFFFF"
+    android:background="@drawable/overlay_panel_background"
     android:elevation="8dp"
     android:orientation="vertical"
-    android:padding="12dp">
-
-    <TextView
-        android:id="@+id/overlayTitleTextView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="筛人助手"
-        android:textColor="#FF222222"
-        android:textSize="16sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/commentTextView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:maxLines="4"
-        android:text="当前评论：暂无"
-        android:textColor="#FF333333"
-        android:textSize="13sp" />
+    android:padding="8dp">
 
     <TextView
         android:id="@+id/queueTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:gravity="center"
         android:maxLines="2"
         android:text="评论队列：0/0"
         android:textColor="#FF555555"
@@ -39,41 +20,45 @@
 
     <Button
         android:id="@+id/readCommentButton"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="读取评论/回复列表" />
+        android:layout_gravity="center_horizontal"
+        android:minWidth="96dp"
+        android:minHeight="36dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:text="读取评论" />
 
     <Button
         android:id="@+id/openProfileButton"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="下一位主页" />
+        android:layout_gravity="center_horizontal"
+        android:minWidth="96dp"
+        android:minHeight="36dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:text="下一个" />
 
     <Button
         android:id="@+id/readProfileInfoButton"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:minWidth="96dp"
+        android:minHeight="36dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
         android:text="读取主页信息" />
-
-    <TextView
-        android:id="@+id/profileInfoTextView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:maxLines="3"
-        android:text="主页信息：暂无"
-        android:textColor="#FF333333"
-        android:textSize="12sp" />
-
-    <Button
-        android:id="@+id/openMessageEntryButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="打开私信入口" />
 
     <Button
         android:id="@+id/collapseButton"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:minWidth="96dp"
+        android:minHeight="36dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
         android:text="收起" />
 </LinearLayout>

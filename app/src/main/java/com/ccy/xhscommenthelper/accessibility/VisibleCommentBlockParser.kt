@@ -19,7 +19,7 @@ data class VisibleCommentBlock(
 object VisibleCommentBlockParser {
     private const val MAX_LEFT_DELTA = 24
     private const val MAX_NICKNAME_TO_COMMENT_GAP = 48
-    private const val MAX_COMMENT_TO_META_GAP = 480
+    private const val MAX_COMMENT_TO_META_GAP = 640
 
     fun parse(nodes: List<VisibleTextNode>): List<VisibleCommentBlock> {
         val ordered = nodes

@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/collapsedButton"
-    android:layout_width="48dp"
-    android:layout_height="48dp"
-    android:background="#CCF44336"
-    android:gravity="center"
-    android:text="筛"
-    android:textColor="#FFFFFFFF"
-    android:textSize="20sp"
-    android:textStyle="bold" />
+    android:layout_width="56dp"
+    android:layout_height="56dp"
+    android:background="@drawable/overlay_orb_background"
+    android:contentDescription="匹配助手悬浮球"
+    android:elevation="10dp">
+
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:alpha="0.88"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_overlay_compass" />
+
+</FrameLayout>

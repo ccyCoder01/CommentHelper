@@ -19,9 +19,11 @@ import com.ccy.xhscommenthelper.accessibility.CommentReader
 import com.ccy.xhscommenthelper.accessibility.MessageFiller
 import com.ccy.xhscommenthelper.accessibility.NodeDebugDumper
 import com.ccy.xhscommenthelper.accessibility.ProfileInfoReader
+import com.ccy.xhscommenthelper.accessibility.XhsAccessibilityService
 import com.ccy.xhscommenthelper.accessibility.XhsActionExecutor
 import com.ccy.xhscommenthelper.data.RecentLeadStore
 import com.ccy.xhscommenthelper.data.SettingsRepository
+import com.ccy.xhscommenthelper.data.UserSettings
 import com.ccy.xhscommenthelper.domain.CommentCandidate
 import com.ccy.xhscommenthelper.domain.Lead
 import com.ccy.xhscommenthelper.domain.LeadStatus
@@ -100,8 +102,8 @@ class FloatingOverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = resources.displayMetrics.widthPixels - width
-            y = resources.displayMetrics.heightPixels / 3
+            x = resources.displayMetrics.widthPixels - width - dpToPx(16)
+            y = dpToPx(220)
         }
     }
 
@@ -109,7 +111,7 @@ class FloatingOverlayService : Service() {
         expanded = false
         removeCurrentView()
         val view = layoutInflater.inflate(R.layout.overlay_collapsed_button, null)
-        params = createLayoutParams(dpToPx(48))
+        params = createLayoutParams(dpToPx(56))
         bindDrag(view)
         view.setOnClickListener { showExpanded() }
         currentView = view
@@ -120,7 +122,7 @@ class FloatingOverlayService : Service() {
         expanded = true
         removeCurrentView()
         val view = layoutInflater.inflate(R.layout.overlay_floating_panel, null)
-        params = createLayoutParams(dpToPx(300))
+        params = createLayoutParams(dpToPx(180))
         bindDrag(view)
         bindExpandedActions(view)
         currentView = view
@@ -165,8 +167,6 @@ class FloatingOverlayService : Service() {
             .setOnClickListener { onOpenProfileClicked() }
         view.findViewById<Button>(R.id.readProfileInfoButton)
             .setOnClickListener { onReadProfileInfoClicked() }
-        view.findViewById<Button>(R.id.openMessageEntryButton)
-            .setOnClickListener { onOpenMessageEntryClicked() }
         view.findViewById<Button>(R.id.collapseButton).setOnClickListener { showCollapsed() }
     }
 
@@ -222,7 +222,7 @@ class FloatingOverlayService : Service() {
 
         val comment = nextQueuedComment()
         if (comment == null) {
-            showToast("请先读取评论/回复列表")
+            showToast("请先读取评论")
             return
         }
 
@@ -263,15 +263,17 @@ class FloatingOverlayService : Service() {
         currentProfileInfo = profileInfoReader.read(root)
         updateExpandedView()
         showToast("已读取当前主页公开信息")
+        serviceScope.launch {
+            val settings = settingsRepository.settingsFlow.first()
+            if (matchesProfileCriteria(currentProfileInfo, settings)) {
+                openMessageEntryAndFill(service)
+            } else {
+                showToast("主页信息不符合画像，已跳过私信入口。")
+            }
+        }
     }
 
-    private fun onOpenMessageEntryClicked() {
-        val service = AccessibilityBridge.service
-        if (service == null) {
-            showToast("请先开启辅助功能权限，否则无法打开私信入口。")
-            return
-        }
-
+    private fun openMessageEntryAndFill(service: XhsAccessibilityService) {
         val ok = actionExecutor.openMessageEntry(service.getRoot())
         if (ok) {
             showToast("已尝试打开私信入口")
@@ -285,7 +287,7 @@ class FloatingOverlayService : Service() {
         }
     }
 
-    private suspend fun fillMessageOnCurrentScreen(service: com.ccy.xhscommenthelper.accessibility.XhsAccessibilityService) {
+    private suspend fun fillMessageOnCurrentScreen(service: XhsAccessibilityService) {
         val fixedText = settingsRepository.settingsFlow.first().fixedText.trim()
         if (fixedText.isBlank()) {
             showToast("请先在主界面配置固定话术。")
@@ -301,7 +303,7 @@ class FloatingOverlayService : Service() {
                 status = LeadStatus.MESSAGE_FILLED,
                 updatedAt = System.currentTimeMillis()
             )
-            showToast("已填入固定话术，请人工确认发送。")
+            showToast("已填入固定话术。")
             if (actionExecutor.openClick(service.getRoot())) {
                 showToast("已发送。")
             } else {
@@ -313,14 +315,19 @@ class FloatingOverlayService : Service() {
         }
     }
 
+    private fun matchesProfileCriteria(profileInfo: ProfileInfo, settings: UserSettings): Boolean {
+        val targetGender = settings.targetGender.trim()
+        val targetIpLocation = settings.targetIpLocation.trim()
+        return targetGender.isNotBlank() &&
+                targetIpLocation.isNotBlank() &&
+                profileInfo.visibleGender == targetGender &&
+                profileInfo.ipLocation == targetIpLocation
+    }
+
     private fun updateExpandedView(view: View? = currentView) {
         if (!expanded || view == null) return
-        view.findViewById<TextView>(R.id.commentTextView).text =
-            "当前主页：${currentLead.nickname ?: "未识别"}\n当前评论：${currentLead.comment ?: "暂无"}"
         view.findViewById<TextView>(R.id.queueTextView).text =
             "评论队列：${if (queueCursor >= 0) queueCursor + 1 else 0}/${commentQueue.size}"
-        view.findViewById<TextView>(R.id.profileInfoTextView).text =
-            "主页信息：${currentProfileInfo.summary.ifBlank { "暂无" }}"
     }
 
     private fun showToast(message: String) {

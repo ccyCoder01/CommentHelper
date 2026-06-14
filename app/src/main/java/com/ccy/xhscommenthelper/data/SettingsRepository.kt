@@ -12,11 +12,15 @@ private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 class SettingsRepository(private val context: Context) {
     private val fixedTextKey = stringPreferencesKey("fixed_text")
     private val targetPackageKey = stringPreferencesKey("target_package")
+    private val targetGenderKey = stringPreferencesKey("target_gender")
+    private val targetIpLocationKey = stringPreferencesKey("target_ip_location")
 
     val settingsFlow: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
         UserSettings(
             fixedText = prefs[fixedTextKey] ?: UserSettings.DEFAULT_FIXED_TEXT,
-            targetPackageName = prefs[targetPackageKey] ?: UserSettings.DEFAULT_TARGET_PACKAGE_NAME
+            targetPackageName = prefs[targetPackageKey] ?: UserSettings.DEFAULT_TARGET_PACKAGE_NAME,
+            targetGender = prefs[targetGenderKey].orEmpty(),
+            targetIpLocation = prefs[targetIpLocationKey].orEmpty()
         )
     }
 
@@ -29,6 +33,13 @@ class SettingsRepository(private val context: Context) {
     suspend fun saveTargetPackageName(packageName: String) {
         context.settingsDataStore.edit { prefs ->
             prefs[targetPackageKey] = packageName
+        }
+    }
+
+    suspend fun saveProfileCriteria(gender: String, ipLocation: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[targetGenderKey] = gender
+            prefs[targetIpLocationKey] = ipLocation
         }
     }
 }

@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">红笺觅卿</string>
-    <string name="main_title">小红书评论区筛人助手</string>
-    <string name="main_description">这是一个手机端提效工具，用于辅助读取当前评论区主页候选、读取主页公开信息，并填入固定话术。最终发送需要你人工确认。</string>
-    <string name="accessibility_service_description">辅助读取小红书当前屏幕评论内容，并帮助填入由用户确认发送的固定话术。</string>
+    <string name="app_name">下一个</string>
+    <string name="main_title">评论区目标用户匹配助手</string>
+    <string name="main_description">从评论互动中识别与目标画像匹配的用户</string>
+    <string name="accessibility_service_description">辅助读取小红书当前屏幕评论内容，并帮助发送的固定话术</string>
 </resources>
