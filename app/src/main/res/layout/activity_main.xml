@@ -59,12 +59,12 @@
             android:background="@drawable/input_field_background"
             android:gravity="top|start"
             android:inputType="textMultiLine"
-            android:minHeight="88dp"
-            android:minLines="3"
+            android:minHeight="56dp"
+            android:minLines="2"
             android:paddingStart="12dp"
-            android:paddingTop="10dp"
+            android:paddingTop="6dp"
             android:paddingEnd="12dp"
-            android:paddingBottom="10dp"
+            android:paddingBottom="6dp"
             android:textSize="15sp" />
 
         <Button
