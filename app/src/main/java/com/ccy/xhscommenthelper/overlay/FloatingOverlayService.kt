@@ -178,8 +178,8 @@ class FloatingOverlayService : Service() {
     }
 
     private suspend fun readCommentsOnCurrentScreen(service: XhsAccessibilityService): Boolean {
-        val result = readFilteredCommentsOnCurrentScreen(service)
-        if (result.filteredCandidates.isEmpty()) {
+        val result = readCommentsFromCurrentScreen(service)
+        if (result.candidates.isEmpty()) {
             commentQueue = emptyList()
             queueCursor = -1
             currentLead = currentLead.copy(
@@ -188,21 +188,16 @@ class FloatingOverlayService : Service() {
             )
             currentProfileInfo = ProfileInfo()
             updateExpandedView()
-            val message = if (result.rawCount > 0) {
-                "已读取${result.rawCount}条，白名单保留0条"
-            } else {
-                "未读取到评论，可手动复制评论后再点击下一个。"
-            }
-            showToast(message)
+            showToast("未读取到评论，可手动复制评论后再点击下一个。")
             return false
         }
 
-        applyCommentQueue(result.filteredCandidates)
-        showToast("已读取${result.rawCount}条，白名单保留${result.filteredCandidates.size}条")
+        applyCommentQueue(result.candidates)
+        showToast("已读取${result.candidates.size}条评论")
         return true
     }
 
-    private suspend fun readFilteredCommentsOnCurrentScreen(
+    private fun readCommentsFromCurrentScreen(
         service: XhsAccessibilityService
     ): CommentReadResult {
         val root = service.getRoot()
@@ -210,20 +205,17 @@ class FloatingOverlayService : Service() {
         val candidates = commentReader.readVisibleComments(root)
         if (candidates.isNotEmpty()) {
             return CommentReadResult(
-                rawCount = candidates.size,
-                filteredCandidates = filterByCommentWhitelist(candidates)
+                candidates = candidates.mapIndexed { index, candidate -> candidate.copy(index = index) }
             )
         }
 
         val comment = commentReader.readCurrentComment(root)
         if (comment.isNullOrBlank()) {
-            return CommentReadResult(rawCount = 0, filteredCandidates = emptyList())
+            return CommentReadResult(candidates = emptyList())
         }
 
-        val fallbackCandidates = listOf(CommentCandidate(comment, 0))
         return CommentReadResult(
-            rawCount = fallbackCandidates.size,
-            filteredCandidates = filterByCommentWhitelist(fallbackCandidates)
+            candidates = listOf(CommentCandidate(comment, 0))
         )
     }
 
@@ -239,21 +231,6 @@ class FloatingOverlayService : Service() {
         currentProfileInfo = ProfileInfo()
         recentLeadStore.saveComment(firstCandidate.text)
         updateExpandedView()
-    }
-
-    private suspend fun filterByCommentWhitelist(
-        candidates: List<CommentCandidate>
-    ): List<CommentCandidate> {
-        val whitelist = settingsRepository.settingsFlow.first()
-            .commentWhitelist
-            .map { keyword -> keyword.trim() }
-            .filter { keyword -> keyword.isNotBlank() }
-        if (whitelist.isEmpty()) {
-            return candidates.mapIndexed { index, candidate -> candidate.copy(index = index) }
-        }
-        return candidates
-            .filter { candidate -> whitelist.any { keyword -> candidate.text.contains(keyword) } }
-            .mapIndexed { index, candidate -> candidate.copy(index = index) }
     }
 
     private fun onNextClicked() {
@@ -396,8 +373,8 @@ class FloatingOverlayService : Service() {
         val ok = service.performSwipeToNextArea()
         if (ok) {
             delay(3000)
-            val result = readFilteredCommentsOnCurrentScreen(service)
-            if (result.filteredCandidates.isEmpty()) {
+            val result = readCommentsFromCurrentScreen(service)
+            if (result.candidates.isEmpty()) {
                 commentQueue = emptyList()
                 queueCursor = -1
                 currentLead = Lead()
@@ -408,12 +385,12 @@ class FloatingOverlayService : Service() {
                 return
             }
 
-            applyCommentQueue(result.filteredCandidates)
-            if (commentQueueSignature(result.filteredCandidates) == previousSignature) {
+            applyCommentQueue(result.candidates)
+            if (commentQueueSignature(result.candidates) == previousSignature) {
                 showToast("滑动后内容未变化")
                 autoLoopStopReason = "滑动后内容未变化，循环已停止"
             } else {
-                showToast("已滑动并读取${result.filteredCandidates.size}条")
+                showToast("已滑动并读取${result.candidates.size}条")
             }
         } else {
             showToast("队列已消费完，滑动失败")
@@ -526,8 +503,7 @@ class FloatingOverlayService : Service() {
     }
 
     private data class CommentReadResult(
-        val rawCount: Int,
-        val filteredCandidates: List<CommentCandidate>
+        val candidates: List<CommentCandidate>
     )
 
     private companion object {
