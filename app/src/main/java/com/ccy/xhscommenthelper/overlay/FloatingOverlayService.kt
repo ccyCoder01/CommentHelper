@@ -68,6 +68,7 @@ class FloatingOverlayService : Service() {
     private var autoLoopJob: Job? = null
     private var autoLoopRunning = false
     private var autoLoopStopReason: String? = null
+    private var openClickSuccessCount = 0
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
@@ -267,6 +268,11 @@ class FloatingOverlayService : Service() {
             return
         }
 
+        if (openClickSuccessCount >= MAX_OPEN_CLICK_SUCCESS_COUNT) {
+            showToast("已发送${MAX_OPEN_CLICK_SUCCESS_COUNT}次，循环已停止")
+            return
+        }
+
         startAutoLoop(service)
     }
 
@@ -356,6 +362,7 @@ class FloatingOverlayService : Service() {
             showToast("主页信息不符合画像，已跳过私信入口。")
             performBackSteps(service, 1)
         }
+        if (autoLoopStopReason != null) return
         swipeToNextAreaIfQueueConsumed(service)
     }
 
@@ -438,7 +445,11 @@ class FloatingOverlayService : Service() {
             )
             showToast("已填入固定话术。")
             if (actionExecutor.openClick(service.getRoot())) {
-                showToast("已发送。")
+                openClickSuccessCount += 1
+                showToast("已发送：$openClickSuccessCount/$MAX_OPEN_CLICK_SUCCESS_COUNT")
+                if (openClickSuccessCount >= MAX_OPEN_CLICK_SUCCESS_COUNT) {
+                    autoLoopStopReason = "已发送${MAX_OPEN_CLICK_SUCCESS_COUNT}次，循环已停止"
+                }
             } else {
                 showToast("发送失败。")
             }
@@ -521,5 +532,6 @@ class FloatingOverlayService : Service() {
 
     private companion object {
         const val MAX_QUEUE_PREVIEW_COUNT = 6
+        const val MAX_OPEN_CLICK_SUCCESS_COUNT = 6
     }
 }
