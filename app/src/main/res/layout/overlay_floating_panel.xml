@@ -49,6 +49,18 @@
         android:text="下一个" />
 
     <Button
+        android:id="@+id/skipLlmDecisionButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:minWidth="84dp"
+        android:minHeight="36dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:text="跳过"
+        android:visibility="gone" />
+
+    <Button
         android:id="@+id/collapseButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

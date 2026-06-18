@@ -121,6 +121,29 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="要求："
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/profileRequirementEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/input_field_background"
+            android:gravity="top|start"
+            android:inputType="textMultiLine"
+            android:minHeight="56dp"
+            android:minLines="2"
+            android:paddingStart="12dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="6dp"
+            android:textSize="15sp" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

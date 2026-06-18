@@ -34,6 +34,8 @@ import com.ccy.xhscommenthelper.domain.CommentCandidate
 import com.ccy.xhscommenthelper.domain.Lead
 import com.ccy.xhscommenthelper.domain.LeadStatus
 import com.ccy.xhscommenthelper.domain.ProfileInfo
+import com.ccy.xhscommenthelper.llm.DeepSeekCommentMatcher
+import com.ccy.xhscommenthelper.llm.LlmMatchResult
 import com.ccy.xhscommenthelper.util.ClipboardHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,11 +62,14 @@ class FloatingOverlayService : Service() {
     private lateinit var profileInfoReader: ProfileInfoReader
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var recentLeadStore: RecentLeadStore
+    private lateinit var llmMatcher: DeepSeekCommentMatcher
 
     private var currentLead = Lead()
     private var commentQueue = emptyList<CommentCandidate>()
     private var queueCursor = -1
     private var currentProfileInfo = ProfileInfo()
+    private var pendingLlmDecisionComment: CommentCandidate? = null
+    private var pendingLlmDecisionReason: String = ""
     private var autoLoopJob: Job? = null
     private var autoLoopRunning = false
     private var autoLoopStopReason: String? = null
@@ -85,6 +90,7 @@ class FloatingOverlayService : Service() {
         profileInfoReader = ProfileInfoReader()
         settingsRepository = SettingsRepository(applicationContext)
         recentLeadStore = RecentLeadStore(applicationContext)
+        llmMatcher = DeepSeekCommentMatcher()
         showCollapsed()
     }
 
@@ -174,6 +180,8 @@ class FloatingOverlayService : Service() {
     private fun bindExpandedActions(view: View) {
         view.findViewById<Button>(R.id.openProfileButton)
             .setOnClickListener { onNextClicked() }
+        view.findViewById<Button>(R.id.skipLlmDecisionButton)
+            .setOnClickListener { onSkipLlmDecisionClicked() }
         view.findViewById<Button>(R.id.collapseButton).setOnClickListener { showCollapsed() }
     }
 
@@ -245,6 +253,11 @@ class FloatingOverlayService : Service() {
             return
         }
 
+        if (pendingLlmDecisionComment != null) {
+            onEnterPendingProfileClicked(service)
+            return
+        }
+
         if (openClickSuccessCount >= MAX_OPEN_CLICK_SUCCESS_COUNT) {
             showToast("已发送${MAX_OPEN_CLICK_SUCCESS_COUNT}次，循环已停止")
             return
@@ -254,6 +267,10 @@ class FloatingOverlayService : Service() {
     }
 
     private fun startAutoLoop(service: XhsAccessibilityService) {
+        if (pendingLlmDecisionComment != null) {
+            showToast("请先选择进入主页或跳过")
+            return
+        }
         autoLoopRunning = true
         autoLoopStopReason = null
         updateExpandedView()
@@ -285,6 +302,8 @@ class FloatingOverlayService : Service() {
         queueCursor = -1
         currentLead = Lead()
         currentProfileInfo = ProfileInfo()
+        pendingLlmDecisionComment = null
+        pendingLlmDecisionReason = ""
         updateExpandedView()
         message?.let { showToast(it) }
     }
@@ -296,8 +315,37 @@ class FloatingOverlayService : Service() {
             return false
         }
 
-        val ok =
-            actionExecutor.openProfileForComment(service.getRoot(), comment.text, comment.nickname)
+        currentLead = Lead(
+            nickname = comment.nickname.orEmpty(),
+            comment = comment.text,
+            status = LeadStatus.COMMENT_READ
+        )
+        currentProfileInfo = ProfileInfo()
+        updateExpandedView()
+
+        val requirement = settingsRepository.settingsFlow.first().profileRequirement.trim()
+        if (requirement.isNotBlank()) {
+            when (llmMatcher.match(requirement, comment.text)) {
+                LlmMatchResult.Match -> Unit
+                LlmMatchResult.Reject -> {
+                    pauseForLlmDecision(comment, "LLM 判断为不匹配")
+                    return true
+                }
+                LlmMatchResult.NeedsConfirmation -> {
+                    pauseForLlmDecision(comment, "LLM 判断失败，请确认")
+                    return true
+                }
+            }
+        }
+
+        return openProfileForComment(service, comment)
+    }
+
+    private suspend fun openProfileForComment(
+        service: XhsAccessibilityService,
+        comment: CommentCandidate
+    ): Boolean {
+        val ok = actionExecutor.openProfileForComment(service.getRoot(), comment.text, comment.nickname)
         if (ok) {
             currentLead = currentLead.copy(
                 nickname = comment.nickname,
@@ -317,6 +365,73 @@ class FloatingOverlayService : Service() {
             showToast("未能自动打开主页，请手动点击头像或昵称。")
             return false
         }
+    }
+
+    private fun pauseForLlmDecision(comment: CommentCandidate, reason: String) {
+        autoLoopRunning = false
+        autoLoopJob = null
+        pendingLlmDecisionComment = comment
+        pendingLlmDecisionReason = reason
+        currentLead = currentLead.copy(
+            nickname = comment.nickname.orEmpty(),
+            comment = comment.text,
+            status = LeadStatus.COMMENT_READ,
+            updatedAt = System.currentTimeMillis()
+        )
+        if (expanded) {
+            updateExpandedView()
+        } else {
+            showExpanded()
+        }
+        showToast("$reason：请选择进入主页或跳过")
+    }
+
+    private fun onEnterPendingProfileClicked(service: XhsAccessibilityService) {
+        val comment = pendingLlmDecisionComment ?: return
+        clearPendingLlmDecision()
+        serviceScope.launch {
+            val opened = openProfileForComment(service, comment)
+            if (!opened) {
+                stopAutoLoop("未能继续处理，循环已停止")
+                return@launch
+            }
+            autoLoopStopReason?.let { reason ->
+                stopAutoLoop(reason)
+                return@launch
+            }
+            if (openClickSuccessCount >= MAX_OPEN_CLICK_SUCCESS_COUNT) {
+                stopAutoLoop("已发送${MAX_OPEN_CLICK_SUCCESS_COUNT}次，循环已停止")
+                return@launch
+            }
+            startAutoLoop(service)
+        }
+    }
+
+    private fun onSkipLlmDecisionClicked() {
+        val service = AccessibilityBridge.service
+        if (service == null) {
+            showToast("请先开启辅助功能权限，否则无法继续。")
+            return
+        }
+        if (pendingLlmDecisionComment == null) return
+        clearPendingLlmDecision()
+        showToast("已跳过")
+        serviceScope.launch {
+            if (commentQueue.isNotEmpty() && queueCursor >= commentQueue.lastIndex) {
+                swipeToNextAreaIfQueueConsumed(service)
+                autoLoopStopReason?.let { reason ->
+                    stopAutoLoop(reason)
+                    return@launch
+                }
+            }
+            startAutoLoop(service)
+        }
+    }
+
+    private fun clearPendingLlmDecision() {
+        pendingLlmDecisionComment = null
+        pendingLlmDecisionReason = ""
+        updateExpandedView()
     }
 
     private fun nextQueuedComment(): CommentCandidate? {
@@ -447,10 +562,20 @@ class FloatingOverlayService : Service() {
 
     private fun updateExpandedView(view: View? = currentView) {
         if (!expanded || view == null) return
+        val hasPendingLlmDecision = pendingLlmDecisionComment != null
         view.findViewById<Button>(R.id.openProfileButton).text =
-            if (autoLoopRunning) "停止" else "下一个"
-        view.findViewById<TextView>(R.id.queueTextView).text =
+            when {
+                hasPendingLlmDecision -> "进入主页"
+                autoLoopRunning -> "停止"
+                else -> "下一个"
+            }
+        view.findViewById<Button>(R.id.skipLlmDecisionButton).visibility =
+            if (hasPendingLlmDecision) View.VISIBLE else View.GONE
+        view.findViewById<TextView>(R.id.queueTextView).text = if (hasPendingLlmDecision) {
+            pendingLlmDecisionReason.ifBlank { "LLM待确认" }
+        } else {
             "评论队列：${if (queueCursor >= 0) queueCursor + 1 else 0}/${commentQueue.size}"
+        }
         view.findViewById<TextView>(R.id.queuePreviewTextView).text = queuePreviewText()
     }
 

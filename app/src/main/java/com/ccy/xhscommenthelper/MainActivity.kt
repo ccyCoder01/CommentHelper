@@ -69,6 +69,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var accessibilityPermissionTextView: TextView
     private lateinit var fixedTextEditText: EditText
+    private lateinit var profileRequirementEditText: EditText
     private lateinit var targetGenderRadioGroup: RadioGroup
     private lateinit var targetMaleRadioButton: RadioButton
     private lateinit var targetFemaleRadioButton: RadioButton
@@ -100,6 +101,7 @@ class MainActivity : AppCompatActivity() {
     private fun bindViews() {
         accessibilityPermissionTextView = findViewById(R.id.accessibilityPermissionTextView)
         fixedTextEditText = findViewById(R.id.fixedTextEditText)
+        profileRequirementEditText = findViewById(R.id.profileRequirementEditText)
         targetGenderRadioGroup = findViewById(R.id.targetGenderRadioGroup)
         targetMaleRadioButton = findViewById(R.id.targetMaleRadioButton)
         targetFemaleRadioButton = findViewById(R.id.targetFemaleRadioButton)
@@ -138,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val settings = settingsRepository.settingsFlow.first()
             fixedTextEditText.setText(settings.fixedText)
+            profileRequirementEditText.setText(settings.profileRequirement)
             applyGenderSelection(settings.targetGender)
             applyIpLocationSelection(settings.targetIpLocation)
         }
@@ -171,7 +174,8 @@ class MainActivity : AppCompatActivity() {
     private suspend fun saveProfileCriteria() {
         settingsRepository.saveProfileCriteria(
             gender = selectedGender(),
-            ipLocation = selectedIpLocation()
+            ipLocation = selectedIpLocation(),
+            profileRequirement = profileRequirementEditText.text.toString()
         )
     }
 
