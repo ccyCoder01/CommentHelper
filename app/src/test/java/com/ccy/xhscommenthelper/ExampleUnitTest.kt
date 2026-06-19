@@ -47,6 +47,7 @@ class ExampleUnitTest {
 
         assertEquals(listOf("蛤蛤大孝", "Kircby", "泷凌"), blocks.map { it.nickname })
         assertEquals(listOf("变 傅首尔  了", "底子还是好啊 换底子不行的胖三十斤脸已经要肿成猪头肉了[捂脸R]", "潜力股啊[赞R]"), blocks.map { it.commentText })
+        assertEquals(listOf("广东", "上海", "广东"), blocks.map { it.ipLocation })
     }
 
     @Test
@@ -60,6 +61,7 @@ class ExampleUnitTest {
         )
 
         assertEquals(listOf("8岁魔法少女"), blocks.map { it.nickname })
+        assertEquals(listOf("北京"), blocks.map { it.ipLocation })
     }
 
     @Test
@@ -75,6 +77,24 @@ class ExampleUnitTest {
 
         assertEquals(listOf("我是马栏山的摄影师CC"), blocks.map { it.nickname })
         assertEquals(listOf("这个算啥"), blocks.map { it.commentText })
+        assertEquals(listOf("湖南"), blocks.map { it.ipLocation })
+    }
+
+    @Test
+    fun visibleCommentBlockParserReadsIpFromReplyMetaRows() {
+        val blocks = VisibleCommentBlockParser.parse(
+            listOf(
+                VisibleTextNode("小鱼喻喻_。", 183, 1132, 412, 1193),
+                VisibleTextNode("耐看", 183, 1193, 1035, 1266),
+                VisibleTextNode("昨天 00:03 湖南 回复", 183, 1783, 783, 1843),
+                VisibleTextNode("禾子霁", 270, 1880, 396, 1941),
+                VisibleTextNode("谢谢！暗调真的越看越舒服 🖤", 270, 1941, 1035, 2014),
+                VisibleTextNode("昨天 07:53 甘肃 回复", 270, 2027, 783, 2087)
+            )
+        )
+
+        assertEquals(listOf("小鱼喻喻_。", "禾子霁"), blocks.map { it.nickname })
+        assertEquals(listOf("湖南", "甘肃"), blocks.map { it.ipLocation })
     }
 
     @Test

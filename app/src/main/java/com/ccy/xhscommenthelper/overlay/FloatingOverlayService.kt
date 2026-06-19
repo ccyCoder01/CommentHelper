@@ -35,6 +35,7 @@ import com.ccy.xhscommenthelper.domain.Lead
 import com.ccy.xhscommenthelper.domain.LeadStatus
 import com.ccy.xhscommenthelper.domain.ProfileInfo
 import com.ccy.xhscommenthelper.llm.DeepSeekCommentMatcher
+import com.ccy.xhscommenthelper.llm.LlmDecision
 import com.ccy.xhscommenthelper.llm.LlmMatchResult
 import com.ccy.xhscommenthelper.util.ClipboardHelper
 import kotlinx.coroutines.CoroutineScope
@@ -70,6 +71,7 @@ class FloatingOverlayService : Service() {
     private var currentProfileInfo = ProfileInfo()
     private var pendingLlmDecisionComment: CommentCandidate? = null
     private var pendingLlmDecisionReason: String = ""
+    private var currentLlmExplicitMatch = false
     private var autoLoopJob: Job? = null
     private var autoLoopRunning = false
     private var autoLoopStopReason: String? = null
@@ -304,6 +306,7 @@ class FloatingOverlayService : Service() {
         currentProfileInfo = ProfileInfo()
         pendingLlmDecisionComment = null
         pendingLlmDecisionReason = ""
+        currentLlmExplicitMatch = false
         updateExpandedView()
         message?.let { showToast(it) }
     }
@@ -321,19 +324,37 @@ class FloatingOverlayService : Service() {
             status = LeadStatus.COMMENT_READ
         )
         currentProfileInfo = ProfileInfo()
+        currentLlmExplicitMatch = false
         updateExpandedView()
 
-        val requirement = settingsRepository.settingsFlow.first().profileRequirement.trim()
+        val settings = settingsRepository.settingsFlow.first()
+        val targetIpLocation = settings.targetIpLocation.trim()
+        val commentIpLocation = comment.commentIpLocation?.trim().orEmpty()
+        if (targetIpLocation.isNotBlank() &&
+            commentIpLocation.isNotBlank() &&
+            commentIpLocation != targetIpLocation
+        ) {
+            showToast("评论区IP $commentIpLocation 不符合画像，已跳过")
+            return true
+        }
+
+        val requirement = settings.profileRequirement.trim()
         if (requirement.isNotBlank()) {
-            when (llmMatcher.match(requirement, comment.text)) {
-                LlmMatchResult.Match -> Unit
-                LlmMatchResult.Reject -> {
-                    pauseForLlmDecision(comment, "LLM 判断为不匹配")
-                    return true
-                }
+            val llmResult = llmMatcher.match(requirement, comment.text)
+            when (llmResult) {
                 LlmMatchResult.NeedsConfirmation -> {
                     pauseForLlmDecision(comment, "LLM 判断失败，请确认")
                     return true
+                }
+                is LlmMatchResult.Result -> {
+                    when (llmResult.decision) {
+                        LlmDecision.Match -> currentLlmExplicitMatch = true
+                        LlmDecision.Reject -> {
+                            pauseForLlmDecision(comment, "LLM 判断为不匹配")
+                            return true
+                        }
+                        LlmDecision.Unknown -> Unit
+                    }
                 }
             }
         }
@@ -372,6 +393,7 @@ class FloatingOverlayService : Service() {
         autoLoopJob = null
         pendingLlmDecisionComment = comment
         pendingLlmDecisionReason = reason
+        currentLlmExplicitMatch = false
         currentLead = currentLead.copy(
             nickname = comment.nickname.orEmpty(),
             comment = comment.text,
@@ -431,6 +453,7 @@ class FloatingOverlayService : Service() {
     private fun clearPendingLlmDecision() {
         pendingLlmDecisionComment = null
         pendingLlmDecisionReason = ""
+        currentLlmExplicitMatch = false
         updateExpandedView()
     }
 
@@ -454,6 +477,7 @@ class FloatingOverlayService : Service() {
             showToast("主页信息不符合画像，已跳过私信入口。")
             performBackSteps(service, 1)
         }
+        currentLlmExplicitMatch = false
         if (autoLoopStopReason != null) return
         swipeToNextAreaIfQueueConsumed(service)
     }
@@ -554,6 +578,10 @@ class FloatingOverlayService : Service() {
     private fun matchesProfileCriteria(profileInfo: ProfileInfo, settings: UserSettings): Boolean {
         val targetGender = settings.targetGender.trim()
         val targetIpLocation = settings.targetIpLocation.trim()
+        if (currentLlmExplicitMatch) {
+            return targetIpLocation.isNotBlank() &&
+                    profileInfo.ipLocation == targetIpLocation
+        }
         return targetGender.isNotBlank() &&
                 targetIpLocation.isNotBlank() &&
                 profileInfo.visibleGender == targetGender &&

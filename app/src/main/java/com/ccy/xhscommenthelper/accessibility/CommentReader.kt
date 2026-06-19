@@ -33,7 +33,8 @@ class CommentReader(private val clipboardHelper: ClipboardHelper) {
                     CommentCandidate(
                         text = block.commentText,
                         index = index,
-                        nickname = block.nickname
+                        nickname = block.nickname,
+                        commentIpLocation = block.ipLocation
                     )
                 }
         }

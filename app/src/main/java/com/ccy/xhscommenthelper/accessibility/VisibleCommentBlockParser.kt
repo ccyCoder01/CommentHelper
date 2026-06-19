@@ -13,7 +13,8 @@ data class VisibleTextNode(
 data class VisibleCommentBlock(
     val nickname: String,
     val commentText: String,
-    val metaText: String
+    val metaText: String,
+    val ipLocation: String?
 )
 
 object VisibleCommentBlockParser {
@@ -39,7 +40,8 @@ object VisibleCommentBlockParser {
                         VisibleCommentBlock(
                             nickname = nickname.text.trim(),
                             commentText = comment.text.trim(),
-                            metaText = meta.text.trim()
+                            metaText = meta.text.trim(),
+                            ipLocation = parseIpLocation(meta.text)
                         )
                     )
                     index = metaIndex + 1
@@ -113,4 +115,48 @@ object VisibleCommentBlockParser {
             value.contains("前天") ||
             Regex("""\d{1,2}-\d{1,2}""").containsMatchIn(value)
     }
+
+    private fun parseIpLocation(text: String): String? {
+        val value = text.trim()
+        return IP_LOCATION_OPTIONS.firstOrNull { location ->
+            Regex("""(^|\s)$location(\s|$)""").containsMatchIn(value)
+        }
+    }
+
+    private val IP_LOCATION_OPTIONS = listOf(
+        "北京",
+        "天津",
+        "河北",
+        "山西",
+        "内蒙古",
+        "辽宁",
+        "吉林",
+        "黑龙江",
+        "上海",
+        "江苏",
+        "浙江",
+        "安徽",
+        "福建",
+        "江西",
+        "山东",
+        "河南",
+        "湖北",
+        "湖南",
+        "广东",
+        "广西",
+        "海南",
+        "重庆",
+        "四川",
+        "贵州",
+        "云南",
+        "西藏",
+        "陕西",
+        "甘肃",
+        "青海",
+        "宁夏",
+        "新疆",
+        "香港",
+        "澳门",
+        "台湾"
+    )
 }

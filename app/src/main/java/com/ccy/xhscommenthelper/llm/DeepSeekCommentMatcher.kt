@@ -13,7 +13,7 @@ class DeepSeekCommentMatcher {
         val normalizedRequirement = requirement.trim()
         val normalizedComment = comment.trim()
         if (normalizedRequirement.isBlank() || normalizedComment.isBlank()) {
-            return LlmMatchResult.Match
+            return LlmMatchResult.NeedsConfirmation
         }
 
         return withContext(Dispatchers.IO) {
@@ -76,38 +76,103 @@ class DeepSeekCommentMatcher {
             ?.optJSONObject("message")
             ?.optString("content")
             ?.trim()
-            ?.lowercase()
             ?: return LlmMatchResult.NeedsConfirmation
 
-        return when (content) {
-            "true" -> LlmMatchResult.Match
-            "false" -> LlmMatchResult.Reject
-            else -> LlmMatchResult.NeedsConfirmation
-        }
+        val json = JSONObject(content)
+        val decision = LlmDecision.from(json.optString("decision"))
+            ?: return LlmMatchResult.NeedsConfirmation
+        val gender = LlmGender.from(json.optString("gender"))
+            ?: return LlmMatchResult.NeedsConfirmation
+        val age = LlmAgeMatch.from(json.optString("age"))
+            ?: return LlmMatchResult.NeedsConfirmation
+
+        return LlmMatchResult.Result(
+            decision = decision,
+            gender = gender,
+            age = age
+        )
     }
 
     private companion object {
         const val API_URL = "https://api.deepseek.com/chat/completions"
         const val API_KEY = "sk-360016f0edc4435ca0c5c2e8dfd733a3"
         const val REQUEST_TIMEOUT_MS = 15_000
+
         const val SYSTEM_PROMPT =
-            "你是一个严谨的用户画像匹配判断助手。你的任务是根据用户输入 content 中的【用户画像要求】和【评论区评论】，只判断该评论作者是否符合用户画像要求中的性别和年龄条件。\n\n" +
+            "你是一个严谨的用户画像匹配判断助手。你的任务是根据用户输入 content 中的【用户画像要求】和【评论区评论】，判断该评论作者是否明确符合用户画像要求中的性别和年龄条件。\n\n" +
                     "判断规则：\n" +
-                    "1. 只提取并判断【用户画像要求】中的性别要求和年龄要求。\n" +
+                    "1. 只提取并判断【用户画像要求】中的性别要求和年龄要求，不判断 IP。\n" +
                     "2. 只根据【评论区评论】中的明确信息或强相关表达进行判断，不得凭空猜测。\n" +
                     "3. 性别判断仅在评论中明确出现性别自述或强指向表达时成立，例如：我是女生、男生表示、宝妈、宝爸、老公、老婆等。不得仅凭语气、昵称、用词风格推断性别。\n" +
-                    "4. 年龄判断仅在评论中明确出现年龄、年龄段、代际或强相关身份信息时成立，例如：25岁、30+、90后、00后、大学生、初中生、宝妈多年等。若无法确认是否落入画像年龄范围，则视为不匹配。\n" +
-                    "5. 如果用户画像要求同时包含性别和年龄，则评论必须同时满足两项才返回 true。\n" +
-                    "6. 如果用户画像只包含性别或只包含年龄，则只判断已给出的条件。\n" +
-                    "7. 如果评论信息不足、无法判断、只有弱相关暗示，返回 false。\n" +
-                    "8. 如果评论内容与性别或年龄要求存在明显冲突，返回 false。\n\n" +
+                    "4. 年龄判断仅在评论中明确出现年龄、年龄段、代际或强相关身份信息时成立，例如：25岁、30+、90后、00后、大学生、初中生、宝妈多年等。\n" +
+                    "5. 如果评论能明确满足用户画像中的性别和年龄要求，decision 返回 match。\n" +
+                    "6. 如果评论能明确与用户画像中的性别或年龄要求冲突，decision 返回 reject。\n" +
+                    "7. 如果评论无法明确判断性别或年龄是否符合要求，decision 返回 unknown。\n" +
+                    "8. gender 字段表示评论中明确识别出的性别，只能是 男、女、unknown。\n" +
+                    "9. age 字段表示评论中年龄是否符合画像，只能是 match、reject、unknown。\n\n" +
                     "输出要求：\n" +
-                    "只能返回 true 或 false，不要返回任何解释、JSON、标点、代码块或其他内容。"
+                    "只能返回一行 JSON，不要返回任何解释、代码块或其他内容。\n" +
+                    "JSON 格式必须为：{\"decision\":\"match|reject|unknown\",\"gender\":\"男|女|unknown\",\"age\":\"match|reject|unknown\"}"
     }
 }
 
-enum class LlmMatchResult {
+sealed class LlmMatchResult {
+    data class Result(
+        val decision: LlmDecision,
+        val gender: LlmGender,
+        val age: LlmAgeMatch
+    ) : LlmMatchResult()
+
+    object NeedsConfirmation : LlmMatchResult()
+}
+
+enum class LlmDecision {
     Match,
     Reject,
-    NeedsConfirmation
+    Unknown;
+
+    companion object {
+        fun from(value: String): LlmDecision? {
+            return when (value.trim().lowercase()) {
+                "match" -> Match
+                "reject" -> Reject
+                "unknown" -> Unknown
+                else -> null
+            }
+        }
+    }
+}
+
+enum class LlmGender {
+    Male,
+    Female,
+    Unknown;
+
+    companion object {
+        fun from(value: String): LlmGender? {
+            return when (value.trim()) {
+                "男" -> Male
+                "女" -> Female
+                "unknown" -> Unknown
+                else -> null
+            }
+        }
+    }
+}
+
+enum class LlmAgeMatch {
+    Match,
+    Reject,
+    Unknown;
+
+    companion object {
+        fun from(value: String): LlmAgeMatch? {
+            return when (value.trim().lowercase()) {
+                "match" -> Match
+                "reject" -> Reject
+                "unknown" -> Unknown
+                else -> null
+            }
+        }
+    }
 }
