@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/navigationSettings"
+        android:icon="@drawable/ic_tab_profile"
+        android:title="画像设置" />
+
+    <item
+        android:id="@+id/navigationStats"
+        android:icon="@drawable/ic_tab_archive"
+        android:title="归档管理" />
+</menu>

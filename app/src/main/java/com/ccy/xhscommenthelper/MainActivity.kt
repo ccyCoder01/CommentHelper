@@ -1,6 +1,7 @@
 package com.ccy.xhscommenthelper
 
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -25,6 +26,7 @@ import com.ccy.xhscommenthelper.data.StatsRepository
 import com.ccy.xhscommenthelper.domain.ArchivedMessageRecord
 import com.ccy.xhscommenthelper.overlay.FloatingOverlayService
 import com.ccy.xhscommenthelper.util.PermissionHelper
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -34,6 +36,7 @@ class MainActivity : AppCompatActivity() {
         Stats
     }
 
+    private var syncingBottomNavigation = false
     private var overlayPermissionDialogShown = false
     private var overlayServiceStarted = false
 
@@ -83,8 +86,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var settingsPage: View
     private lateinit var statsPage: View
-    private lateinit var settingsTabButton: Button
-    private lateinit var statsTabButton: Button
+    private lateinit var bottomNavigation: BottomNavigationView
+    private lateinit var accessibilityStatusCard: View
     private lateinit var accessibilityPermissionTextView: TextView
     private lateinit var fixedTextEditText: EditText
     private lateinit var profileRequirementEditText: EditText
@@ -129,8 +132,8 @@ class MainActivity : AppCompatActivity() {
     private fun bindViews() {
         settingsPage = findViewById(R.id.settingsPage)
         statsPage = findViewById(R.id.statsPage)
-        settingsTabButton = findViewById(R.id.settingsTabButton)
-        statsTabButton = findViewById(R.id.statsTabButton)
+        bottomNavigation = findViewById(R.id.bottomNavigation)
+        accessibilityStatusCard = findViewById(R.id.accessibilityStatusCard)
         accessibilityPermissionTextView = findViewById(R.id.accessibilityPermissionTextView)
         fixedTextEditText = findViewById(R.id.fixedTextEditText)
         profileRequirementEditText = findViewById(R.id.profileRequirementEditText)
@@ -162,6 +165,7 @@ class MainActivity : AppCompatActivity() {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
         genderSpinner.adapter = statsGenderAdapter
+        applyStatsGenderSelection("")
 
         val statsIpLocationAdapter = ArrayAdapter(
             this,
@@ -171,6 +175,7 @@ class MainActivity : AppCompatActivity() {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
         ipLocationSpinner.adapter = statsIpLocationAdapter
+        applyStatsIpLocationSelection("")
 
         statsAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
         statsListView.adapter = statsAdapter
@@ -195,12 +200,19 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
 
-        settingsTabButton.setOnClickListener {
-            showPage(MainPage.Settings)
-        }
-
-        statsTabButton.setOnClickListener {
-            showPage(MainPage.Stats)
+        bottomNavigation.setOnItemSelectedListener { item ->
+            if (syncingBottomNavigation) return@setOnItemSelectedListener true
+            when (item.itemId) {
+                R.id.navigationSettings -> {
+                    showPage(MainPage.Settings)
+                    true
+                }
+                R.id.navigationStats -> {
+                    showPage(MainPage.Stats)
+                    true
+                }
+                else -> false
+            }
         }
 
         statsListView.setOnItemClickListener { _, _, position, _ ->
@@ -262,10 +274,18 @@ class MainActivity : AppCompatActivity() {
     private fun showPage(page: MainPage) {
         settingsPage.visibility = if (page == MainPage.Settings) View.VISIBLE else View.GONE
         statsPage.visibility = if (page == MainPage.Stats) View.VISIBLE else View.GONE
-        settingsTabButton.isSelected = page == MainPage.Settings
-        statsTabButton.isSelected = page == MainPage.Stats
-        settingsTabButton.alpha = if (page == MainPage.Settings) 1.0f else 0.72f
-        statsTabButton.alpha = if (page == MainPage.Stats) 1.0f else 0.72f
+        val targetItemId = when (page) {
+            MainPage.Settings -> R.id.navigationSettings
+            MainPage.Stats -> R.id.navigationStats
+        }
+        if (bottomNavigation.selectedItemId != targetItemId) {
+            syncingBottomNavigation = true
+            try {
+                bottomNavigation.selectedItemId = targetItemId
+            } finally {
+                syncingBottomNavigation = false
+            }
+        }
         if (page == MainPage.Stats) {
             loadRecords()
         }
@@ -364,8 +384,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateAccessibilityPermissionStatus() {
-        val accessibilityStatus = if (PermissionHelper.isAccessibilityServiceEnabled(this)) "已开启" else "未开启"
-        accessibilityPermissionTextView.text = "辅助功能权限：$accessibilityStatus"
+        if (PermissionHelper.isAccessibilityServiceEnabled(this)) {
+            accessibilityStatusCard.setBackgroundResource(R.drawable.status_card_enabled_background)
+            accessibilityPermissionTextView.text = "辅助功能已开启"
+            accessibilityPermissionTextView.setTextColor(Color.parseColor("#FF2F6B45"))
+            findViewById<Button>(R.id.openAccessibilitySettingsButton).text = "查看设置"
+        } else {
+            accessibilityStatusCard.setBackgroundResource(R.drawable.status_card_disabled_background)
+            accessibilityPermissionTextView.text = "辅助功能未开启，开启后才能读取页面内容。"
+            accessibilityPermissionTextView.setTextColor(Color.parseColor("#FF7A4B2A"))
+            findViewById<Button>(R.id.openAccessibilitySettingsButton).text = "去开启"
+        }
     }
 
     private fun ensureOverlayPermissionAndService() {
