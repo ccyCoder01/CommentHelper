@@ -23,6 +23,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.ccy.xhscommenthelper.data.SettingsRepository
 import com.ccy.xhscommenthelper.data.StatsRepository
+import com.ccy.xhscommenthelper.domain.ArchiveLabelStatus
 import com.ccy.xhscommenthelper.domain.ArchivedMessageRecord
 import com.ccy.xhscommenthelper.overlay.FloatingOverlayService
 import com.ccy.xhscommenthelper.util.PermissionHelper
@@ -80,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     private val defaultStatsIpLocation = "陕西"
     private val statsGenderOptions = listOf("男", "女")
     private val statsIpLocationOptions = ipLocationOptions
+    private val labelStatusOptions = ArchiveLabelStatus.entries.map { status -> status.displayName }
 
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var statsRepository: StatsRepository
@@ -101,6 +103,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var genderSpinner: Spinner
     private lateinit var ipLocationSpinner: Spinner
     private lateinit var commentEditText: EditText
+    private lateinit var labelStatusSpinner: Spinner
+    private lateinit var labelReasonEditText: EditText
     private lateinit var statsAdapter: ArrayAdapter<String>
     private var records: List<ArchivedMessageRecord> = emptyList()
 
@@ -147,6 +151,8 @@ class MainActivity : AppCompatActivity() {
         genderSpinner = findViewById(R.id.genderSpinner)
         ipLocationSpinner = findViewById(R.id.ipLocationSpinner)
         commentEditText = findViewById(R.id.commentEditText)
+        labelStatusSpinner = findViewById(R.id.labelStatusSpinner)
+        labelReasonEditText = findViewById(R.id.labelReasonEditText)
 
         val ipLocationAdapter = ArrayAdapter(
             this,
@@ -176,6 +182,16 @@ class MainActivity : AppCompatActivity() {
         }
         ipLocationSpinner.adapter = statsIpLocationAdapter
         applyStatsIpLocationSelection("")
+
+        val labelStatusAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            labelStatusOptions
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        labelStatusSpinner.adapter = labelStatusAdapter
+        applyLabelStatusSelection(ArchiveLabelStatus.Unlabeled.storageValue)
 
         statsAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
         statsListView.adapter = statsAdapter
@@ -314,7 +330,9 @@ class MainActivity : AppCompatActivity() {
                     nickname = nicknameEditText.text.toString().trim(),
                     gender = selectedStatsGender(),
                     ipLocation = selectedStatsIpLocation(),
-                    comment = commentEditText.text.toString().trim()
+                    comment = commentEditText.text.toString().trim(),
+                    labelStatus = selectedLabelStatus().storageValue,
+                    labelReason = labelReasonEditText.text.toString().trim()
                 )
             )
             Toast.makeText(this@MainActivity, "记录已保存", Toast.LENGTH_SHORT).show()
@@ -342,6 +360,8 @@ class MainActivity : AppCompatActivity() {
         applyStatsGenderSelection(record.gender)
         applyStatsIpLocationSelection(record.ipLocation)
         commentEditText.setText(record.comment)
+        applyLabelStatusSelection(record.labelStatus)
+        labelReasonEditText.setText(record.labelReason)
     }
 
     private fun clearForm() {
@@ -350,6 +370,8 @@ class MainActivity : AppCompatActivity() {
         applyStatsGenderSelection("")
         applyStatsIpLocationSelection("")
         commentEditText.setText("")
+        applyLabelStatusSelection(ArchiveLabelStatus.Unlabeled.storageValue)
+        labelReasonEditText.setText("")
         statsListView.clearChoices()
     }
 
@@ -376,11 +398,22 @@ class MainActivity : AppCompatActivity() {
         ipLocationSpinner.setSelection(index)
     }
 
+    private fun selectedLabelStatus(): ArchiveLabelStatus {
+        return ArchiveLabelStatus.fromDisplayName(labelStatusSpinner.selectedItem?.toString().orEmpty())
+    }
+
+    private fun applyLabelStatusSelection(labelStatus: String) {
+        val status = ArchiveLabelStatus.fromStorageValue(labelStatus)
+        val index = labelStatusOptions.indexOf(status.displayName).takeIf { it >= 0 } ?: 0
+        labelStatusSpinner.setSelection(index)
+    }
+
     private fun ArchivedMessageRecord.toListLabel(): String {
         val nicknameText = nickname.ifBlank { "未识别昵称" }
         val genderText = gender.ifBlank { "性别未识别" }
         val ipText = ipLocation.ifBlank { "IP未识别" }
-        return "$xhsId / $nicknameText / $genderText / $ipText"
+        val labelText = ArchiveLabelStatus.fromStorageValue(labelStatus).displayName
+        return "$xhsId / $nicknameText / $genderText / $ipText / $labelText"
     }
 
     private fun updateAccessibilityPermissionStatus() {

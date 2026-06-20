@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ccy.xhscommenthelper.domain.ArchiveLabelStatus
 import com.ccy.xhscommenthelper.domain.ArchivedMessageRecord
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -75,6 +76,11 @@ class StatsRepository(private val context: Context) {
                         .put("gender", record.gender)
                         .put("ipLocation", record.ipLocation)
                         .put("comment", record.comment)
+                        .put(
+                            "labelStatus",
+                            ArchiveLabelStatus.fromStorageValue(record.labelStatus).storageValue
+                        )
+                        .put("labelReason", record.labelReason)
                         .put("createdAt", record.createdAt)
                         .put("updatedAt", record.updatedAt)
                 )
@@ -98,6 +104,10 @@ class StatsRepository(private val context: Context) {
                             gender = item.optString("gender"),
                             ipLocation = item.optString("ipLocation"),
                             comment = item.optString("comment"),
+                            labelStatus = ArchiveLabelStatus.fromStorageValue(
+                                item.optString("labelStatus")
+                            ).storageValue,
+                            labelReason = item.optString("labelReason"),
                             createdAt = item.optLong("createdAt", 0L),
                             updatedAt = item.optLong("updatedAt", 0L)
                         )
