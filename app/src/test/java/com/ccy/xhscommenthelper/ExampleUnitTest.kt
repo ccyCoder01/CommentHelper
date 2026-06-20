@@ -157,8 +157,20 @@ class ExampleUnitTest {
             listOf("小红书号：123", "女，25岁", "IP属地：浙江")
         )
 
+        assertEquals("123", info.xhsId)
         assertEquals("女", info.visibleGender)
         assertEquals("浙江", info.ipLocation)
+    }
+
+    @Test
+    fun profileInfoExtractorParsesXhsId() {
+        assertEquals("1893166367", ProfileInfoTextExtractor.extract(listOf("小红书号：1893166367")).xhsId)
+        assertEquals("abc_123", ProfileInfoTextExtractor.extract(listOf("小红书号: abc_123")).xhsId)
+    }
+
+    @Test
+    fun profileInfoExtractorKeepsMissingXhsIdNull() {
+        assertEquals(null, ProfileInfoTextExtractor.extract(listOf("IP：天津")).xhsId)
     }
 
     @Test
@@ -195,5 +207,6 @@ class ExampleUnitTest {
 
         assertEquals(null, info.visibleGender)
         assertEquals(null, info.ipLocation)
+        assertEquals("123", info.xhsId)
     }
 }

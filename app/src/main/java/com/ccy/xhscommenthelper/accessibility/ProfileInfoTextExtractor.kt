@@ -21,14 +21,17 @@ object ProfileInfoTextExtractor {
         val visibleGender = textValues.firstNotNullOfOrNull { parseGenderFromText(it) }
             ?: idValues.firstNotNullOfOrNull { parseGenderFromId(it) }
 
+        val xhsId = textValues.firstNotNullOfOrNull { parseXhsId(it) }
         val ipLocation = textValues.firstNotNullOfOrNull { parseIpLocation(it) }
 
         val summary = buildList {
+            add("小红书号：${xhsId ?: "未识别"}")
             add("性别：${visibleGender ?: "未识别"}")
             add("IP：${ipLocation ?: "未识别"}")
         }.joinToString("\n")
 
         return ProfileInfo(
+            xhsId = xhsId,
             visibleGender = visibleGender,
             ipLocation = ipLocation,
             summary = summary
@@ -59,6 +62,15 @@ object ProfileInfoTextExtractor {
 
     private fun parseIpLocation(text: String): String? {
         val match = Regex("""IP\s*(?:属地)?\s*[:：]?\s*(.+)""", RegexOption.IGNORE_CASE)
+            .find(text.trim())
+            ?: return null
+        return match.groupValues.getOrNull(1)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun parseXhsId(text: String): String? {
+        val match = Regex("""小红书号\s*[:：]\s*([A-Za-z0-9_.-]+)""")
             .find(text.trim())
             ?: return null
         return match.groupValues.getOrNull(1)

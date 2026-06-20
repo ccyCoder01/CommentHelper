@@ -4,9 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ListView
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.Spinner
@@ -19,12 +21,19 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.ccy.xhscommenthelper.data.SettingsRepository
+import com.ccy.xhscommenthelper.data.StatsRepository
+import com.ccy.xhscommenthelper.domain.ArchivedMessageRecord
 import com.ccy.xhscommenthelper.overlay.FloatingOverlayService
 import com.ccy.xhscommenthelper.util.PermissionHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
+    private enum class MainPage {
+        Settings,
+        Stats
+    }
+
     private var overlayPermissionDialogShown = false
     private var overlayServiceStarted = false
 
@@ -64,9 +73,18 @@ class MainActivity : AppCompatActivity() {
         "澳门",
         "台湾"
     )
+    private val defaultStatsGender = "女"
+    private val defaultStatsIpLocation = "陕西"
+    private val statsGenderOptions = listOf("男", "女")
+    private val statsIpLocationOptions = ipLocationOptions
 
     private lateinit var settingsRepository: SettingsRepository
+    private lateinit var statsRepository: StatsRepository
 
+    private lateinit var settingsPage: View
+    private lateinit var statsPage: View
+    private lateinit var settingsTabButton: Button
+    private lateinit var statsTabButton: Button
     private lateinit var accessibilityPermissionTextView: TextView
     private lateinit var fixedTextEditText: EditText
     private lateinit var profileRequirementEditText: EditText
@@ -74,6 +92,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var targetMaleRadioButton: RadioButton
     private lateinit var targetFemaleRadioButton: RadioButton
     private lateinit var targetIpLocationSpinner: Spinner
+    private lateinit var statsListView: ListView
+    private lateinit var xhsIdEditText: EditText
+    private lateinit var nicknameEditText: EditText
+    private lateinit var genderSpinner: Spinner
+    private lateinit var ipLocationSpinner: Spinner
+    private lateinit var commentEditText: EditText
+    private lateinit var statsAdapter: ArrayAdapter<String>
+    private var records: List<ArchivedMessageRecord> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,9 +112,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         settingsRepository = SettingsRepository(applicationContext)
+        statsRepository = StatsRepository(applicationContext)
         bindViews()
         bindActions()
         observeState()
+        showPage(MainPage.Settings)
         ensureOverlayPermissionAndService()
     }
 
@@ -99,6 +127,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindViews() {
+        settingsPage = findViewById(R.id.settingsPage)
+        statsPage = findViewById(R.id.statsPage)
+        settingsTabButton = findViewById(R.id.settingsTabButton)
+        statsTabButton = findViewById(R.id.statsTabButton)
         accessibilityPermissionTextView = findViewById(R.id.accessibilityPermissionTextView)
         fixedTextEditText = findViewById(R.id.fixedTextEditText)
         profileRequirementEditText = findViewById(R.id.profileRequirementEditText)
@@ -106,6 +138,13 @@ class MainActivity : AppCompatActivity() {
         targetMaleRadioButton = findViewById(R.id.targetMaleRadioButton)
         targetFemaleRadioButton = findViewById(R.id.targetFemaleRadioButton)
         targetIpLocationSpinner = findViewById(R.id.targetIpLocationSpinner)
+        statsListView = findViewById(R.id.statsListView)
+        xhsIdEditText = findViewById(R.id.xhsIdEditText)
+        nicknameEditText = findViewById(R.id.nicknameEditText)
+        genderSpinner = findViewById(R.id.genderSpinner)
+        ipLocationSpinner = findViewById(R.id.ipLocationSpinner)
+        commentEditText = findViewById(R.id.commentEditText)
+
         val ipLocationAdapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
@@ -114,6 +153,27 @@ class MainActivity : AppCompatActivity() {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
         targetIpLocationSpinner.adapter = ipLocationAdapter
+
+        val statsGenderAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            statsGenderOptions
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        genderSpinner.adapter = statsGenderAdapter
+
+        val statsIpLocationAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            statsIpLocationOptions
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        ipLocationSpinner.adapter = statsIpLocationAdapter
+
+        statsAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
+        statsListView.adapter = statsAdapter
     }
 
     private fun bindActions() {
@@ -133,6 +193,26 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.openAccessibilitySettingsButton).setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+
+        settingsTabButton.setOnClickListener {
+            showPage(MainPage.Settings)
+        }
+
+        statsTabButton.setOnClickListener {
+            showPage(MainPage.Stats)
+        }
+
+        statsListView.setOnItemClickListener { _, _, position, _ ->
+            records.getOrNull(position)?.let { record -> applyRecord(record) }
+        }
+
+        findViewById<Button>(R.id.saveRecordButton).setOnClickListener {
+            saveRecord()
+        }
+
+        findViewById<Button>(R.id.deleteRecordButton).setOnClickListener {
+            deleteRecord()
         }
     }
 
@@ -177,6 +257,110 @@ class MainActivity : AppCompatActivity() {
             ipLocation = selectedIpLocation(),
             profileRequirement = profileRequirementEditText.text.toString()
         )
+    }
+
+    private fun showPage(page: MainPage) {
+        settingsPage.visibility = if (page == MainPage.Settings) View.VISIBLE else View.GONE
+        statsPage.visibility = if (page == MainPage.Stats) View.VISIBLE else View.GONE
+        settingsTabButton.isSelected = page == MainPage.Settings
+        statsTabButton.isSelected = page == MainPage.Stats
+        settingsTabButton.alpha = if (page == MainPage.Settings) 1.0f else 0.72f
+        statsTabButton.alpha = if (page == MainPage.Stats) 1.0f else 0.72f
+        if (page == MainPage.Stats) {
+            loadRecords()
+        }
+    }
+
+    private fun loadRecords() {
+        lifecycleScope.launch {
+            records = statsRepository.getAll()
+                .sortedByDescending { record -> record.updatedAt }
+            statsAdapter.clear()
+            statsAdapter.addAll(records.map { record -> record.toListLabel() })
+            statsAdapter.notifyDataSetChanged()
+        }
+    }
+
+    private fun saveRecord() {
+        val xhsId = xhsIdEditText.text.toString().trim()
+        if (xhsId.isBlank()) {
+            Toast.makeText(this, "小红书号不能为空", Toast.LENGTH_SHORT).show()
+            return
+        }
+        lifecycleScope.launch {
+            statsRepository.save(
+                ArchivedMessageRecord(
+                    xhsId = xhsId,
+                    nickname = nicknameEditText.text.toString().trim(),
+                    gender = selectedStatsGender(),
+                    ipLocation = selectedStatsIpLocation(),
+                    comment = commentEditText.text.toString().trim()
+                )
+            )
+            Toast.makeText(this@MainActivity, "记录已保存", Toast.LENGTH_SHORT).show()
+            loadRecords()
+        }
+    }
+
+    private fun deleteRecord() {
+        val xhsId = xhsIdEditText.text.toString().trim()
+        if (xhsId.isBlank()) {
+            Toast.makeText(this, "请先选择或输入小红书号", Toast.LENGTH_SHORT).show()
+            return
+        }
+        lifecycleScope.launch {
+            statsRepository.delete(xhsId)
+            Toast.makeText(this@MainActivity, "记录已删除", Toast.LENGTH_SHORT).show()
+            clearForm()
+            loadRecords()
+        }
+    }
+
+    private fun applyRecord(record: ArchivedMessageRecord) {
+        xhsIdEditText.setText(record.xhsId)
+        nicknameEditText.setText(record.nickname)
+        applyStatsGenderSelection(record.gender)
+        applyStatsIpLocationSelection(record.ipLocation)
+        commentEditText.setText(record.comment)
+    }
+
+    private fun clearForm() {
+        xhsIdEditText.setText("")
+        nicknameEditText.setText("")
+        applyStatsGenderSelection("")
+        applyStatsIpLocationSelection("")
+        commentEditText.setText("")
+        statsListView.clearChoices()
+    }
+
+    private fun selectedStatsGender(): String {
+        return genderSpinner.selectedItem?.toString().orEmpty()
+    }
+
+    private fun selectedStatsIpLocation(): String {
+        return ipLocationSpinner.selectedItem?.toString().orEmpty()
+    }
+
+    private fun applyStatsGenderSelection(gender: String) {
+        val target = gender.ifBlank { defaultStatsGender }
+        val index = statsGenderOptions.indexOf(target).takeIf { it >= 0 }
+            ?: statsGenderOptions.indexOf(defaultStatsGender)
+        genderSpinner.setSelection(index)
+    }
+
+    private fun applyStatsIpLocationSelection(ipLocation: String) {
+        val target = ipLocation.ifBlank { defaultStatsIpLocation }
+        val index = statsIpLocationOptions.indexOf(target).takeIf { it >= 0 }
+            ?: statsIpLocationOptions.indexOf(defaultStatsIpLocation).takeIf { it >= 0 }
+            ?: 0
+        ipLocationSpinner.setSelection(index)
+    }
+
+    private fun ArchivedMessageRecord.toListLabel(): String {
+        val nicknameText = nickname.ifBlank { "未识别昵称" }
+        val genderText = gender.ifBlank { "性别未识别" }
+        val ipText = ipLocation.ifBlank { "IP未识别" }
+        return "$xhsId / $nicknameText / $genderText / $ipText"
     }
 
     private fun updateAccessibilityPermissionStatus() {

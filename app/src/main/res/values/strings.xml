@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">下一个</string>
-    <string name="main_title">评论区目标用户匹配助手</string>
+    <string name="main_title">画像设置</string>
     <string name="main_description">从评论互动中识别与目标画像匹配的用户</string>
     <string name="accessibility_service_description">辅助读取小红书当前屏幕评论内容，并帮助发送的固定话术</string>
 </resources>

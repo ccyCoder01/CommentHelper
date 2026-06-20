@@ -29,7 +29,9 @@ import com.ccy.xhscommenthelper.accessibility.XhsAccessibilityService
 import com.ccy.xhscommenthelper.accessibility.XhsActionExecutor
 import com.ccy.xhscommenthelper.data.RecentLeadStore
 import com.ccy.xhscommenthelper.data.SettingsRepository
+import com.ccy.xhscommenthelper.data.StatsRepository
 import com.ccy.xhscommenthelper.data.UserSettings
+import com.ccy.xhscommenthelper.domain.ArchivedMessageRecord
 import com.ccy.xhscommenthelper.domain.CommentCandidate
 import com.ccy.xhscommenthelper.domain.Lead
 import com.ccy.xhscommenthelper.domain.LeadStatus
@@ -63,6 +65,7 @@ class FloatingOverlayService : Service() {
     private lateinit var profileInfoReader: ProfileInfoReader
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var recentLeadStore: RecentLeadStore
+    private lateinit var statsRepository: StatsRepository
     private lateinit var llmMatcher: DeepSeekCommentMatcher
 
     private var currentLead = Lead()
@@ -92,6 +95,7 @@ class FloatingOverlayService : Service() {
         profileInfoReader = ProfileInfoReader()
         settingsRepository = SettingsRepository(applicationContext)
         recentLeadStore = RecentLeadStore(applicationContext)
+        statsRepository = StatsRepository(applicationContext)
         llmMatcher = DeepSeekCommentMatcher()
         showCollapsed()
     }
@@ -470,6 +474,15 @@ class FloatingOverlayService : Service() {
         updateExpandedView()
         showToast("已读取当前主页公开信息")
         val settings = settingsRepository.settingsFlow.first()
+        val xhsId = currentProfileInfo.xhsId?.trim().orEmpty()
+        if (xhsId.isNotBlank() && statsRepository.exists(xhsId)) {
+            showToast("小红书号已归档，跳过私信入口。")
+            performBackSteps(service, 1)
+            currentLlmExplicitMatch = false
+            if (autoLoopStopReason != null) return
+            swipeToNextAreaIfQueueConsumed(service)
+            return
+        }
         if (matchesProfileCriteria(currentProfileInfo, settings)) {
             openMessageEntryAndFill(service)
             performBackSteps(service, 2)
@@ -562,6 +575,7 @@ class FloatingOverlayService : Service() {
             showToast("已填入固定话术。")
             if (actionExecutor.openClick(service.getRoot())) {
                 openClickSuccessCount += 1
+                archiveCurrentLead()
                 showToast("已发送：$openClickSuccessCount/$MAX_OPEN_CLICK_SUCCESS_COUNT")
                 if (openClickSuccessCount >= MAX_OPEN_CLICK_SUCCESS_COUNT) {
                     autoLoopStopReason = "已发送${MAX_OPEN_CLICK_SUCCESS_COUNT}次，循环已停止"
@@ -573,6 +587,20 @@ class FloatingOverlayService : Service() {
             clipboardHelper.copyText(fixedText)
             showToast("自动填入失败，已复制固定话术，请手动粘贴。")
         }
+    }
+
+    private suspend fun archiveCurrentLead() {
+        val xhsId = currentProfileInfo.xhsId?.trim().orEmpty()
+        if (xhsId.isBlank()) return
+        statsRepository.save(
+            ArchivedMessageRecord(
+                xhsId = xhsId,
+                nickname = currentLead.nickname.orEmpty(),
+                gender = currentProfileInfo.visibleGender.orEmpty(),
+                ipLocation = currentProfileInfo.ipLocation.orEmpty(),
+                comment = currentLead.comment.orEmpty()
+            )
+        )
     }
 
     private fun matchesProfileCriteria(profileInfo: ProfileInfo, settings: UserSettings): Boolean {
