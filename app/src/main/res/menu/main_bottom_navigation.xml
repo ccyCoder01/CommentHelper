@@ -9,4 +9,9 @@
         android:id="@+id/navigationStats"
         android:icon="@drawable/ic_tab_archive"
         android:title="归档管理" />
+
+    <item
+        android:id="@+id/navigationAnalytics"
+        android:icon="@drawable/ic_tab_analytics"
+        android:title="数据分析" />
 </menu>

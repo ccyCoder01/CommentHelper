@@ -21,6 +21,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import com.ccy.xhscommenthelper.analytics.RoseChartView
+import com.ccy.xhscommenthelper.analytics.SemiRingChartView
 import com.ccy.xhscommenthelper.data.SettingsRepository
 import com.ccy.xhscommenthelper.data.StatsRepository
 import com.ccy.xhscommenthelper.domain.ArchiveLabelStatus
@@ -34,10 +36,21 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
     private enum class MainPage {
         Settings,
-        Stats
+        Stats,
+        Analytics
     }
 
+    private val reasonColors = listOf(
+        Color.parseColor("#FFB64A4A"),
+        Color.parseColor("#FF3F7E68"),
+        Color.parseColor("#FF4F6F93"),
+        Color.parseColor("#FFD49A3A"),
+        Color.parseColor("#FF8B6FA8"),
+        Color.parseColor("#FF7A6A55")
+    )
+
     private var syncingBottomNavigation = false
+    private var currentPage = MainPage.Settings
     private var overlayPermissionDialogShown = false
     private var overlayServiceStarted = false
 
@@ -88,6 +101,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var settingsPage: View
     private lateinit var statsPage: View
+    private lateinit var analyticsPage: View
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var accessibilityStatusCard: View
     private lateinit var accessibilityPermissionTextView: TextView
@@ -105,6 +119,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var commentEditText: EditText
     private lateinit var labelStatusSpinner: Spinner
     private lateinit var labelReasonEditText: EditText
+    private lateinit var semiRingChartView: SemiRingChartView
+    private lateinit var semiRingLegendTextView: TextView
+    private lateinit var roseChartView: RoseChartView
+    private lateinit var roseLegendTextView: TextView
     private lateinit var statsAdapter: ArrayAdapter<String>
     private var records: List<ArchivedMessageRecord> = emptyList()
 
@@ -130,12 +148,16 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateAccessibilityPermissionStatus()
+        if (currentPage == MainPage.Analytics) {
+            loadAnalytics()
+        }
         ensureOverlayPermissionAndService()
     }
 
     private fun bindViews() {
         settingsPage = findViewById(R.id.settingsPage)
         statsPage = findViewById(R.id.statsPage)
+        analyticsPage = findViewById(R.id.analyticsPage)
         bottomNavigation = findViewById(R.id.bottomNavigation)
         accessibilityStatusCard = findViewById(R.id.accessibilityStatusCard)
         accessibilityPermissionTextView = findViewById(R.id.accessibilityPermissionTextView)
@@ -153,6 +175,10 @@ class MainActivity : AppCompatActivity() {
         commentEditText = findViewById(R.id.commentEditText)
         labelStatusSpinner = findViewById(R.id.labelStatusSpinner)
         labelReasonEditText = findViewById(R.id.labelReasonEditText)
+        semiRingChartView = findViewById(R.id.semiRingChartView)
+        semiRingLegendTextView = findViewById(R.id.semiRingLegendTextView)
+        roseChartView = findViewById(R.id.roseChartView)
+        roseLegendTextView = findViewById(R.id.roseLegendTextView)
 
         val ipLocationAdapter = ArrayAdapter(
             this,
@@ -227,6 +253,10 @@ class MainActivity : AppCompatActivity() {
                     showPage(MainPage.Stats)
                     true
                 }
+                R.id.navigationAnalytics -> {
+                    showPage(MainPage.Analytics)
+                    true
+                }
                 else -> false
             }
         }
@@ -288,11 +318,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPage(page: MainPage) {
+        currentPage = page
         settingsPage.visibility = if (page == MainPage.Settings) View.VISIBLE else View.GONE
         statsPage.visibility = if (page == MainPage.Stats) View.VISIBLE else View.GONE
+        analyticsPage.visibility = if (page == MainPage.Analytics) View.VISIBLE else View.GONE
         val targetItemId = when (page) {
             MainPage.Settings -> R.id.navigationSettings
             MainPage.Stats -> R.id.navigationStats
+            MainPage.Analytics -> R.id.navigationAnalytics
         }
         if (bottomNavigation.selectedItemId != targetItemId) {
             syncingBottomNavigation = true
@@ -305,6 +338,9 @@ class MainActivity : AppCompatActivity() {
         if (page == MainPage.Stats) {
             loadRecords()
         }
+        if (page == MainPage.Analytics) {
+            loadAnalytics()
+        }
     }
 
     private fun loadRecords() {
@@ -314,6 +350,56 @@ class MainActivity : AppCompatActivity() {
             statsAdapter.clear()
             statsAdapter.addAll(records.map { record -> record.toListLabel() })
             statsAdapter.notifyDataSetChanged()
+        }
+    }
+
+    private fun loadAnalytics() {
+        lifecycleScope.launch {
+            val records = statsRepository.getAll()
+            val successCount = records.count { record ->
+                ArchiveLabelStatus.fromStorageValue(record.labelStatus) == ArchiveLabelStatus.Success
+            }
+            val failureCount = records.count { record ->
+                ArchiveLabelStatus.fromStorageValue(record.labelStatus) == ArchiveLabelStatus.Failure
+            }
+            val unlabeledCount = records.count { record ->
+                ArchiveLabelStatus.fromStorageValue(record.labelStatus) == ArchiveLabelStatus.Unlabeled
+            }
+
+            val semiSegments = listOf(
+                SemiRingChartView.Segment("成功", successCount, Color.parseColor("#FF3F7E68")),
+                SemiRingChartView.Segment("失败", failureCount, Color.parseColor("#FFB64A4A")),
+                SemiRingChartView.Segment("未标记", unlabeledCount, Color.parseColor("#FF8A929D"))
+            )
+            semiRingChartView.setSegments(semiSegments)
+            semiRingLegendTextView.text = semiSegments.joinToString("    ") { segment ->
+                "${segment.label}：${segment.count}"
+            }
+
+            val reasonCounts = records
+                .filter { record ->
+                    ArchiveLabelStatus.fromStorageValue(record.labelStatus) == ArchiveLabelStatus.Failure
+                }
+                .groupingBy { record ->
+                    record.labelReason.trim().ifBlank { "未填写原因" }
+                }
+                .eachCount()
+                .entries
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+
+            val roseSlices = reasonCounts.mapIndexed { index, entry ->
+                RoseChartView.Slice(
+                    label = entry.key,
+                    count = entry.value,
+                    color = reasonColors[index % reasonColors.size]
+                )
+            }
+            roseChartView.setSlices(roseSlices)
+            roseLegendTextView.text = if (roseSlices.isEmpty()) {
+                "暂无失败记录"
+            } else {
+                roseSlices.joinToString("\n") { slice -> "${slice.label}：${slice.count}" }
+            }
         }
     }
 

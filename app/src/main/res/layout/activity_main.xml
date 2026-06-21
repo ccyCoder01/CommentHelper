@@ -483,6 +483,94 @@
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>
+
+        <ScrollView
+            android:id="@+id/analyticsPage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:paddingBottom="24dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="数据分析"
+                    android:textColor="#FF20262D"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/card_background"
+                    android:elevation="1dp"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="标签结果分布"
+                        android:textColor="#FF20262D"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <com.ccy.xhscommenthelper.analytics.SemiRingChartView
+                        android:id="@+id/semiRingChartView"
+                        android:layout_width="match_parent"
+                        android:layout_height="210dp"
+                        android:layout_marginTop="10dp" />
+
+                    <TextView
+                        android:id="@+id/semiRingLegendTextView"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textColor="#FF4C5663"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/card_background"
+                    android:elevation="1dp"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="失败原因分布"
+                        android:textColor="#FF20262D"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <com.ccy.xhscommenthelper.analytics.RoseChartView
+                        android:id="@+id/roseChartView"
+                        android:layout_width="match_parent"
+                        android:layout_height="260dp"
+                        android:layout_marginTop="10dp" />
+
+                    <TextView
+                        android:id="@+id/roseLegendTextView"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textColor="#FF4C5663"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
     </FrameLayout>
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
