@@ -7,14 +7,11 @@
     android:contentDescription="匹配助手悬浮球"
     android:elevation="10dp">
 
-    <ImageView
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+    <View
+        android:layout_width="42dp"
+        android:layout_height="42dp"
         android:layout_gravity="center"
-        android:alpha="0.92"
         android:background="@drawable/overlay_orb_background"
-        android:contentDescription="@null"
-        android:padding="8dp"
-        android:src="@drawable/ic_overlay_compass" />
+        android:contentDescription="@null" />
 
 </FrameLayout>

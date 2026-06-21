@@ -36,20 +36,11 @@
                     android:textSize="24sp"
                     android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/descriptionTextView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="@string/main_description"
-                    android:textColor="#FF6C7480"
-                    android:textSize="14sp" />
-
                 <LinearLayout
                     android:id="@+id/accessibilityStatusCard"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="12dp"
                     android:background="@drawable/status_card_disabled_background"
                     android:elevation="1dp"
                     android:orientation="vertical"
@@ -334,85 +325,6 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:text="昵称"
-                        android:textColor="#FF4C5663"
-                        android:textSize="14sp" />
-
-                    <EditText
-                        android:id="@+id/nicknameEditText"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="6dp"
-                        android:background="@drawable/field_background"
-                        android:inputType="text"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
-                        android:textColor="#FF20262D"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="性别"
-                        android:textColor="#FF4C5663"
-                        android:textSize="14sp" />
-
-                    <Spinner
-                        android:id="@+id/genderSpinner"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="6dp"
-                        android:background="@drawable/field_background"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="IP"
-                        android:textColor="#FF4C5663"
-                        android:textSize="14sp" />
-
-                    <Spinner
-                        android:id="@+id/ipLocationSpinner"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="6dp"
-                        android:background="@drawable/field_background"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="评论"
-                        android:textColor="#FF4C5663"
-                        android:textSize="14sp" />
-
-                    <EditText
-                        android:id="@+id/commentEditText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:background="@drawable/field_background"
-                        android:gravity="top|start"
-                        android:inputType="textMultiLine"
-                        android:minHeight="80dp"
-                        android:minLines="3"
-                        android:paddingStart="12dp"
-                        android:paddingTop="8dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="8dp"
-                        android:textColor="#FF20262D"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
                         android:text="判断结果"
                         android:textColor="#FF4C5663"
                         android:textSize="14sp" />
@@ -464,11 +376,11 @@
                             android:layout_height="42dp"
                             android:background="@drawable/button_danger_background"
                             android:minWidth="84dp"
-                        android:paddingStart="18dp"
-                        android:paddingEnd="18dp"
-                        android:text="删除"
-                        android:textColor="#FFB64A4A"
-                        app:backgroundTint="@null" />
+                            android:paddingStart="18dp"
+                            android:paddingEnd="18dp"
+                            android:text="删除"
+                            android:textColor="#FFB64A4A"
+                            app:backgroundTint="@null" />
 
                         <Button
                             android:id="@+id/saveRecordButton"
@@ -557,19 +469,11 @@
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
-                    <com.ccy.xhscommenthelper.analytics.RoseChartView
-                        android:id="@+id/roseChartView"
+                    <com.ccy.xhscommenthelper.analytics.FailureReasonBarChartView
+                        android:id="@+id/failureReasonBarChartView"
                         android:layout_width="match_parent"
                         android:layout_height="260dp"
                         android:layout_marginTop="10dp" />
-
-                    <TextView
-                        android:id="@+id/roseLegendTextView"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:textColor="#FF4C5663"
-                        android:textSize="14sp" />
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>

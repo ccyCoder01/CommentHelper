@@ -594,11 +594,7 @@ class FloatingOverlayService : Service() {
         if (xhsId.isBlank()) return
         statsRepository.save(
             ArchivedMessageRecord(
-                xhsId = xhsId,
-                nickname = currentLead.nickname.orEmpty(),
-                gender = currentProfileInfo.visibleGender.orEmpty(),
-                ipLocation = currentProfileInfo.ipLocation.orEmpty(),
-                comment = currentLead.comment.orEmpty()
+                xhsId = xhsId
             )
         )
     }

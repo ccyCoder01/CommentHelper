@@ -5,7 +5,9 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -21,7 +23,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
-import com.ccy.xhscommenthelper.analytics.RoseChartView
+import com.ccy.xhscommenthelper.analytics.FailureReasonBarChartView
 import com.ccy.xhscommenthelper.analytics.SemiRingChartView
 import com.ccy.xhscommenthelper.data.SettingsRepository
 import com.ccy.xhscommenthelper.data.StatsRepository
@@ -90,10 +92,6 @@ class MainActivity : AppCompatActivity() {
         "澳门",
         "台湾"
     )
-    private val defaultStatsGender = "女"
-    private val defaultStatsIpLocation = "陕西"
-    private val statsGenderOptions = listOf("男", "女")
-    private val statsIpLocationOptions = ipLocationOptions
     private val labelStatusOptions = ArchiveLabelStatus.entries.map { status -> status.displayName }
 
     private lateinit var settingsRepository: SettingsRepository
@@ -113,17 +111,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var targetIpLocationSpinner: Spinner
     private lateinit var statsListView: ListView
     private lateinit var xhsIdEditText: EditText
-    private lateinit var nicknameEditText: EditText
-    private lateinit var genderSpinner: Spinner
-    private lateinit var ipLocationSpinner: Spinner
-    private lateinit var commentEditText: EditText
     private lateinit var labelStatusSpinner: Spinner
     private lateinit var labelReasonEditText: EditText
     private lateinit var semiRingChartView: SemiRingChartView
     private lateinit var semiRingLegendTextView: TextView
-    private lateinit var roseChartView: RoseChartView
-    private lateinit var roseLegendTextView: TextView
-    private lateinit var statsAdapter: ArrayAdapter<String>
+    private lateinit var failureReasonBarChartView: FailureReasonBarChartView
+    private lateinit var statsAdapter: ArchivedRecordAdapter
     private var records: List<ArchivedMessageRecord> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -169,16 +162,11 @@ class MainActivity : AppCompatActivity() {
         targetIpLocationSpinner = findViewById(R.id.targetIpLocationSpinner)
         statsListView = findViewById(R.id.statsListView)
         xhsIdEditText = findViewById(R.id.xhsIdEditText)
-        nicknameEditText = findViewById(R.id.nicknameEditText)
-        genderSpinner = findViewById(R.id.genderSpinner)
-        ipLocationSpinner = findViewById(R.id.ipLocationSpinner)
-        commentEditText = findViewById(R.id.commentEditText)
         labelStatusSpinner = findViewById(R.id.labelStatusSpinner)
         labelReasonEditText = findViewById(R.id.labelReasonEditText)
         semiRingChartView = findViewById(R.id.semiRingChartView)
         semiRingLegendTextView = findViewById(R.id.semiRingLegendTextView)
-        roseChartView = findViewById(R.id.roseChartView)
-        roseLegendTextView = findViewById(R.id.roseLegendTextView)
+        failureReasonBarChartView = findViewById(R.id.failureReasonBarChartView)
 
         val ipLocationAdapter = ArrayAdapter(
             this,
@@ -188,26 +176,6 @@ class MainActivity : AppCompatActivity() {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
         targetIpLocationSpinner.adapter = ipLocationAdapter
-
-        val statsGenderAdapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_item,
-            statsGenderOptions
-        ).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        }
-        genderSpinner.adapter = statsGenderAdapter
-        applyStatsGenderSelection("")
-
-        val statsIpLocationAdapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_item,
-            statsIpLocationOptions
-        ).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        }
-        ipLocationSpinner.adapter = statsIpLocationAdapter
-        applyStatsIpLocationSelection("")
 
         val labelStatusAdapter = ArrayAdapter(
             this,
@@ -219,7 +187,7 @@ class MainActivity : AppCompatActivity() {
         labelStatusSpinner.adapter = labelStatusAdapter
         applyLabelStatusSelection(ArchiveLabelStatus.Unlabeled.storageValue)
 
-        statsAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
+        statsAdapter = ArchivedRecordAdapter(this)
         statsListView.adapter = statsAdapter
     }
 
@@ -348,7 +316,7 @@ class MainActivity : AppCompatActivity() {
             records = statsRepository.getAll()
                 .sortedByDescending { record -> record.updatedAt }
             statsAdapter.clear()
-            statsAdapter.addAll(records.map { record -> record.toListLabel() })
+            statsAdapter.addAll(records)
             statsAdapter.notifyDataSetChanged()
         }
     }
@@ -387,19 +355,14 @@ class MainActivity : AppCompatActivity() {
                 .entries
                 .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
 
-            val roseSlices = reasonCounts.mapIndexed { index, entry ->
-                RoseChartView.Slice(
+            val reasonBars = reasonCounts.mapIndexed { index, entry ->
+                FailureReasonBarChartView.Bar(
                     label = entry.key,
                     count = entry.value,
                     color = reasonColors[index % reasonColors.size]
                 )
             }
-            roseChartView.setSlices(roseSlices)
-            roseLegendTextView.text = if (roseSlices.isEmpty()) {
-                "暂无失败记录"
-            } else {
-                roseSlices.joinToString("\n") { slice -> "${slice.label}：${slice.count}" }
-            }
+            failureReasonBarChartView.setBars(reasonBars)
         }
     }
 
@@ -413,10 +376,6 @@ class MainActivity : AppCompatActivity() {
             statsRepository.save(
                 ArchivedMessageRecord(
                     xhsId = xhsId,
-                    nickname = nicknameEditText.text.toString().trim(),
-                    gender = selectedStatsGender(),
-                    ipLocation = selectedStatsIpLocation(),
-                    comment = commentEditText.text.toString().trim(),
                     labelStatus = selectedLabelStatus().storageValue,
                     labelReason = labelReasonEditText.text.toString().trim()
                 )
@@ -442,46 +401,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyRecord(record: ArchivedMessageRecord) {
         xhsIdEditText.setText(record.xhsId)
-        nicknameEditText.setText(record.nickname)
-        applyStatsGenderSelection(record.gender)
-        applyStatsIpLocationSelection(record.ipLocation)
-        commentEditText.setText(record.comment)
         applyLabelStatusSelection(record.labelStatus)
         labelReasonEditText.setText(record.labelReason)
     }
 
     private fun clearForm() {
         xhsIdEditText.setText("")
-        nicknameEditText.setText("")
-        applyStatsGenderSelection("")
-        applyStatsIpLocationSelection("")
-        commentEditText.setText("")
         applyLabelStatusSelection(ArchiveLabelStatus.Unlabeled.storageValue)
         labelReasonEditText.setText("")
         statsListView.clearChoices()
-    }
-
-    private fun selectedStatsGender(): String {
-        return genderSpinner.selectedItem?.toString().orEmpty()
-    }
-
-    private fun selectedStatsIpLocation(): String {
-        return ipLocationSpinner.selectedItem?.toString().orEmpty()
-    }
-
-    private fun applyStatsGenderSelection(gender: String) {
-        val target = gender.ifBlank { defaultStatsGender }
-        val index = statsGenderOptions.indexOf(target).takeIf { it >= 0 }
-            ?: statsGenderOptions.indexOf(defaultStatsGender)
-        genderSpinner.setSelection(index)
-    }
-
-    private fun applyStatsIpLocationSelection(ipLocation: String) {
-        val target = ipLocation.ifBlank { defaultStatsIpLocation }
-        val index = statsIpLocationOptions.indexOf(target).takeIf { it >= 0 }
-            ?: statsIpLocationOptions.indexOf(defaultStatsIpLocation).takeIf { it >= 0 }
-            ?: 0
-        ipLocationSpinner.setSelection(index)
     }
 
     private fun selectedLabelStatus(): ArchiveLabelStatus {
@@ -492,14 +420,6 @@ class MainActivity : AppCompatActivity() {
         val status = ArchiveLabelStatus.fromStorageValue(labelStatus)
         val index = labelStatusOptions.indexOf(status.displayName).takeIf { it >= 0 } ?: 0
         labelStatusSpinner.setSelection(index)
-    }
-
-    private fun ArchivedMessageRecord.toListLabel(): String {
-        val nicknameText = nickname.ifBlank { "未识别昵称" }
-        val genderText = gender.ifBlank { "性别未识别" }
-        val ipText = ipLocation.ifBlank { "IP未识别" }
-        val labelText = ArchiveLabelStatus.fromStorageValue(labelStatus).displayName
-        return "$xhsId / $nicknameText / $genderText / $ipText / $labelText"
     }
 
     private fun updateAccessibilityPermissionStatus() {
@@ -541,5 +461,23 @@ class MainActivity : AppCompatActivity() {
             Uri.parse("package:$packageName")
         )
         startActivity(intent)
+    }
+
+    private class ArchivedRecordAdapter(
+        context: MainActivity
+    ) : ArrayAdapter<ArchivedMessageRecord>(context, R.layout.item_archived_record, mutableListOf()) {
+        private val inflater = LayoutInflater.from(context)
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = convertView ?: inflater.inflate(R.layout.item_archived_record, parent, false)
+            val record = getItem(position)
+            val labelStatus = ArchiveLabelStatus.fromStorageValue(record?.labelStatus.orEmpty())
+            val reason = record?.labelReason?.trim().orEmpty().ifBlank { "未填写原因" }
+
+            view.findViewById<TextView>(R.id.recordXhsIdTextView).text = record?.xhsId.orEmpty()
+            view.findViewById<TextView>(R.id.recordLabelStatusTextView).text = labelStatus.displayName
+            view.findViewById<TextView>(R.id.recordLabelReasonTextView).text = reason
+            return view
+        }
     }
 }

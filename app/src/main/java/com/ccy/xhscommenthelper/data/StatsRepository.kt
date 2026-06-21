@@ -72,10 +72,6 @@ class StatsRepository(private val context: Context) {
                 put(
                     JSONObject()
                         .put("xhsId", record.xhsId)
-                        .put("nickname", record.nickname)
-                        .put("gender", record.gender)
-                        .put("ipLocation", record.ipLocation)
-                        .put("comment", record.comment)
                         .put(
                             "labelStatus",
                             ArchiveLabelStatus.fromStorageValue(record.labelStatus).storageValue
@@ -100,10 +96,6 @@ class StatsRepository(private val context: Context) {
                     add(
                         ArchivedMessageRecord(
                             xhsId = xhsId,
-                            nickname = item.optString("nickname"),
-                            gender = item.optString("gender"),
-                            ipLocation = item.optString("ipLocation"),
-                            comment = item.optString("comment"),
                             labelStatus = ArchiveLabelStatus.fromStorageValue(
                                 item.optString("labelStatus")
                             ).storageValue,
