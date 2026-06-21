@@ -77,12 +77,13 @@
                         android:layout_width="wrap_content"
                         android:layout_height="40dp"
                         android:layout_marginTop="12dp"
-                        android:background="@drawable/button_secondary_background"
+                        android:background="@drawable/button_primary_background"
                         android:minWidth="92dp"
                         android:paddingStart="16dp"
                         android:paddingEnd="16dp"
                         android:text="去开启"
-                        android:textColor="#FF2F3A45" />
+                        android:textColor="#FFFFFFFF"
+                        app:backgroundTint="@null" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -463,10 +464,11 @@
                             android:layout_height="42dp"
                             android:background="@drawable/button_danger_background"
                             android:minWidth="84dp"
-                            android:paddingStart="18dp"
-                            android:paddingEnd="18dp"
-                            android:text="删除"
-                            android:textColor="#FFB64A4A" />
+                        android:paddingStart="18dp"
+                        android:paddingEnd="18dp"
+                        android:text="删除"
+                        android:textColor="#FFB64A4A"
+                        app:backgroundTint="@null" />
 
                         <Button
                             android:id="@+id/saveRecordButton"
