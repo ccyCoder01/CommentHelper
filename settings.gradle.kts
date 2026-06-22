@@ -46,5 +46,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "XhsCommentHelper"
+rootProject.name = "CommentHelper"
 include(":app")

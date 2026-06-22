@@ -282,6 +282,50 @@
                         android:divider="#FFE4E8EE"
                         android:dividerHeight="1dp"
                         android:padding="4dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/archivePrevPageButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:background="@drawable/button_secondary_background"
+                            android:minWidth="72dp"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:text="上一页"
+                            android:textColor="#FF2F3A45"
+                            android:textSize="13sp"
+                            app:backgroundTint="@null" />
+
+                        <TextView
+                            android:id="@+id/archivePageTextView"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:layout_marginEnd="14dp"
+                            android:text="第 0/0 页"
+                            android:textColor="#FF4C5663"
+                            android:textSize="14sp" />
+
+                        <Button
+                            android:id="@+id/archiveNextPageButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:background="@drawable/button_secondary_background"
+                            android:minWidth="72dp"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp"
+                            android:text="下一页"
+                            android:textColor="#FF2F3A45"
+                            android:textSize="13sp"
+                            app:backgroundTint="@null" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <LinearLayout
@@ -346,22 +390,14 @@
                         android:textColor="#FF4C5663"
                         android:textSize="14sp" />
 
-                    <EditText
-                        android:id="@+id/labelReasonEditText"
+                    <Spinner
+                        android:id="@+id/labelReasonSpinner"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="44dp"
                         android:layout_marginTop="6dp"
                         android:background="@drawable/field_background"
-                        android:gravity="top|start"
-                        android:inputType="textMultiLine"
-                        android:minHeight="72dp"
-                        android:minLines="2"
-                        android:paddingStart="12dp"
-                        android:paddingTop="8dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="8dp"
-                        android:textColor="#FF20262D"
-                        android:textSize="15sp" />
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp" />
 
                     <LinearLayout
                         android:layout_width="match_parent"

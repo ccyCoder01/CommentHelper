@@ -354,7 +354,7 @@ class FloatingOverlayService : Service() {
                     when (llmResult.decision) {
                         LlmDecision.Match -> currentLlmExplicitMatch = true
                         LlmDecision.Reject -> {
-                            pauseForLlmDecision(comment, "LLM 判断为不匹配")
+                            showToast("LLM 判断为不匹配，已跳过")
                             return true
                         }
                         LlmDecision.Unknown -> Unit

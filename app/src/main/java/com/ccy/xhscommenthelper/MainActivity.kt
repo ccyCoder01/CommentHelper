@@ -36,6 +36,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
+    private companion object {
+        const val ARCHIVE_PAGE_SIZE = 5
+    }
+
     private enum class MainPage {
         Settings,
         Stats,
@@ -93,6 +97,7 @@ class MainActivity : AppCompatActivity() {
         "台湾"
     )
     private val labelStatusOptions = ArchiveLabelStatus.entries.map { status -> status.displayName }
+    private val labelReasonOptions = listOf("不理人", "不想找了", "卡年龄", "我不会说话", "卡颜", "卡 IP")
 
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var statsRepository: StatsRepository
@@ -110,14 +115,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var targetFemaleRadioButton: RadioButton
     private lateinit var targetIpLocationSpinner: Spinner
     private lateinit var statsListView: ListView
+    private lateinit var archivePrevPageButton: Button
+    private lateinit var archiveNextPageButton: Button
+    private lateinit var archivePageTextView: TextView
     private lateinit var xhsIdEditText: EditText
     private lateinit var labelStatusSpinner: Spinner
-    private lateinit var labelReasonEditText: EditText
+    private lateinit var labelReasonSpinner: Spinner
     private lateinit var semiRingChartView: SemiRingChartView
     private lateinit var semiRingLegendTextView: TextView
     private lateinit var failureReasonBarChartView: FailureReasonBarChartView
     private lateinit var statsAdapter: ArchivedRecordAdapter
     private var records: List<ArchivedMessageRecord> = emptyList()
+    private var pagedRecords: List<ArchivedMessageRecord> = emptyList()
+    private var archiveCurrentPage = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -161,9 +171,12 @@ class MainActivity : AppCompatActivity() {
         targetFemaleRadioButton = findViewById(R.id.targetFemaleRadioButton)
         targetIpLocationSpinner = findViewById(R.id.targetIpLocationSpinner)
         statsListView = findViewById(R.id.statsListView)
+        archivePrevPageButton = findViewById(R.id.archivePrevPageButton)
+        archiveNextPageButton = findViewById(R.id.archiveNextPageButton)
+        archivePageTextView = findViewById(R.id.archivePageTextView)
         xhsIdEditText = findViewById(R.id.xhsIdEditText)
         labelStatusSpinner = findViewById(R.id.labelStatusSpinner)
-        labelReasonEditText = findViewById(R.id.labelReasonEditText)
+        labelReasonSpinner = findViewById(R.id.labelReasonSpinner)
         semiRingChartView = findViewById(R.id.semiRingChartView)
         semiRingLegendTextView = findViewById(R.id.semiRingLegendTextView)
         failureReasonBarChartView = findViewById(R.id.failureReasonBarChartView)
@@ -186,6 +199,16 @@ class MainActivity : AppCompatActivity() {
         }
         labelStatusSpinner.adapter = labelStatusAdapter
         applyLabelStatusSelection(ArchiveLabelStatus.Unlabeled.storageValue)
+
+        val labelReasonAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            labelReasonOptions
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        labelReasonSpinner.adapter = labelReasonAdapter
+        applyLabelReasonSelection("")
 
         statsAdapter = ArchivedRecordAdapter(this)
         statsListView.adapter = statsAdapter
@@ -230,7 +253,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         statsListView.setOnItemClickListener { _, _, position, _ ->
-            records.getOrNull(position)?.let { record -> applyRecord(record) }
+            pagedRecords.getOrNull(position)?.let { record -> applyRecord(record) }
+        }
+
+        archivePrevPageButton.setOnClickListener {
+            if (archiveCurrentPage > 1) {
+                archiveCurrentPage -= 1
+                renderArchivePage()
+            }
+        }
+
+        archiveNextPageButton.setOnClickListener {
+            val totalPages = archiveTotalPages()
+            if (archiveCurrentPage < totalPages) {
+                archiveCurrentPage += 1
+                renderArchivePage()
+            }
         }
 
         findViewById<Button>(R.id.saveRecordButton).setOnClickListener {
@@ -315,9 +353,52 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             records = statsRepository.getAll()
                 .sortedByDescending { record -> record.updatedAt }
-            statsAdapter.clear()
-            statsAdapter.addAll(records)
-            statsAdapter.notifyDataSetChanged()
+            clampArchiveCurrentPage()
+            renderArchivePage()
+        }
+    }
+
+    private fun loadRecordsFromFirstPage() {
+        archiveCurrentPage = 1
+        loadRecords()
+    }
+
+    private fun renderArchivePage() {
+        clampArchiveCurrentPage()
+        val totalPages = archiveTotalPages()
+        val startIndex = if (totalPages == 0) 0 else (archiveCurrentPage - 1) * ARCHIVE_PAGE_SIZE
+        pagedRecords = if (totalPages == 0) {
+            emptyList()
+        } else {
+            records.drop(startIndex).take(ARCHIVE_PAGE_SIZE)
+        }
+
+        statsAdapter.clear()
+        statsAdapter.addAll(pagedRecords)
+        statsAdapter.notifyDataSetChanged()
+        statsListView.clearChoices()
+
+        archivePageTextView.text = if (totalPages == 0) {
+            "第 0/0 页"
+        } else {
+            "第 $archiveCurrentPage/$totalPages 页"
+        }
+        archivePrevPageButton.isEnabled = totalPages > 0 && archiveCurrentPage > 1
+        archiveNextPageButton.isEnabled = totalPages > 0 && archiveCurrentPage < totalPages
+    }
+
+    private fun archiveTotalPages(): Int {
+        if (records.isEmpty()) return 0
+        return (records.size + ARCHIVE_PAGE_SIZE - 1) / ARCHIVE_PAGE_SIZE
+    }
+
+    private fun clampArchiveCurrentPage() {
+        val totalPages = archiveTotalPages()
+        archiveCurrentPage = when {
+            totalPages == 0 -> 1
+            archiveCurrentPage < 1 -> 1
+            archiveCurrentPage > totalPages -> totalPages
+            else -> archiveCurrentPage
         }
     }
 
@@ -377,11 +458,11 @@ class MainActivity : AppCompatActivity() {
                 ArchivedMessageRecord(
                     xhsId = xhsId,
                     labelStatus = selectedLabelStatus().storageValue,
-                    labelReason = labelReasonEditText.text.toString().trim()
+                    labelReason = selectedLabelReason()
                 )
             )
             Toast.makeText(this@MainActivity, "记录已保存", Toast.LENGTH_SHORT).show()
-            loadRecords()
+            loadRecordsFromFirstPage()
         }
     }
 
@@ -402,13 +483,13 @@ class MainActivity : AppCompatActivity() {
     private fun applyRecord(record: ArchivedMessageRecord) {
         xhsIdEditText.setText(record.xhsId)
         applyLabelStatusSelection(record.labelStatus)
-        labelReasonEditText.setText(record.labelReason)
+        applyLabelReasonSelection(record.labelReason)
     }
 
     private fun clearForm() {
         xhsIdEditText.setText("")
         applyLabelStatusSelection(ArchiveLabelStatus.Unlabeled.storageValue)
-        labelReasonEditText.setText("")
+        applyLabelReasonSelection("")
         statsListView.clearChoices()
     }
 
@@ -420,6 +501,16 @@ class MainActivity : AppCompatActivity() {
         val status = ArchiveLabelStatus.fromStorageValue(labelStatus)
         val index = labelStatusOptions.indexOf(status.displayName).takeIf { it >= 0 } ?: 0
         labelStatusSpinner.setSelection(index)
+    }
+
+    private fun selectedLabelReason(): String {
+        return labelReasonSpinner.selectedItem?.toString().orEmpty()
+    }
+
+    private fun applyLabelReasonSelection(reason: String) {
+        val normalizedReason = reason.trim()
+        val index = labelReasonOptions.indexOf(normalizedReason).takeIf { it >= 0 } ?: 0
+        labelReasonSpinner.setSelection(index)
     }
 
     private fun updateAccessibilityPermissionStatus() {
