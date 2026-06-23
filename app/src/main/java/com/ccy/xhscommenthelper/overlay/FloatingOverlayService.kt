@@ -343,8 +343,9 @@ class FloatingOverlayService : Service() {
         }
 
         val requirement = settings.profileRequirement.trim()
-        if (requirement.isNotBlank()) {
-            val llmResult = llmMatcher.match(requirement, comment.text)
+        val llmApiKey = settings.llmApiKey.trim()
+        if (requirement.isNotBlank() && llmApiKey.isNotBlank()) {
+            val llmResult = llmMatcher.match(requirement, comment.text, llmApiKey)
             when (llmResult) {
                 LlmMatchResult.NeedsConfirmation -> {
                     pauseForLlmDecision(comment, "LLM 判断失败，请确认")

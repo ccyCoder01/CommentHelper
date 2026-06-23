@@ -15,6 +15,7 @@ class SettingsRepository(private val context: Context) {
     private val targetGenderKey = stringPreferencesKey("target_gender")
     private val targetIpLocationKey = stringPreferencesKey("target_ip_location")
     private val profileRequirementKey = stringPreferencesKey("profile_requirement")
+    private val llmApiKeyKey = stringPreferencesKey("llm_api_key")
 
     val settingsFlow: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
         UserSettings(
@@ -22,7 +23,8 @@ class SettingsRepository(private val context: Context) {
             targetPackageName = prefs[targetPackageKey] ?: UserSettings.DEFAULT_TARGET_PACKAGE_NAME,
             targetGender = prefs[targetGenderKey].orEmpty(),
             targetIpLocation = prefs[targetIpLocationKey].orEmpty(),
-            profileRequirement = prefs[profileRequirementKey].orEmpty()
+            profileRequirement = prefs[profileRequirementKey].orEmpty(),
+            llmApiKey = prefs[llmApiKeyKey].orEmpty()
         )
     }
 
@@ -38,11 +40,17 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
-    suspend fun saveProfileCriteria(gender: String, ipLocation: String, profileRequirement: String) {
+    suspend fun saveProfileCriteria(
+        gender: String,
+        ipLocation: String,
+        profileRequirement: String,
+        llmApiKey: String
+    ) {
         context.settingsDataStore.edit { prefs ->
             prefs[targetGenderKey] = gender
             prefs[targetIpLocationKey] = ipLocation
             prefs[profileRequirementKey] = profileRequirement
+            prefs[llmApiKeyKey] = llmApiKey
         }
     }
 }

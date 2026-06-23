@@ -110,6 +110,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var accessibilityPermissionTextView: TextView
     private lateinit var fixedTextEditText: EditText
     private lateinit var profileRequirementEditText: EditText
+    private lateinit var llmApiKeyEditText: EditText
     private lateinit var targetGenderRadioGroup: RadioGroup
     private lateinit var targetMaleRadioButton: RadioButton
     private lateinit var targetFemaleRadioButton: RadioButton
@@ -166,6 +167,7 @@ class MainActivity : AppCompatActivity() {
         accessibilityPermissionTextView = findViewById(R.id.accessibilityPermissionTextView)
         fixedTextEditText = findViewById(R.id.fixedTextEditText)
         profileRequirementEditText = findViewById(R.id.profileRequirementEditText)
+        llmApiKeyEditText = findViewById(R.id.llmApiKeyEditText)
         targetGenderRadioGroup = findViewById(R.id.targetGenderRadioGroup)
         targetMaleRadioButton = findViewById(R.id.targetMaleRadioButton)
         targetFemaleRadioButton = findViewById(R.id.targetFemaleRadioButton)
@@ -285,6 +287,7 @@ class MainActivity : AppCompatActivity() {
             val settings = settingsRepository.settingsFlow.first()
             fixedTextEditText.setText(settings.fixedText)
             profileRequirementEditText.setText(settings.profileRequirement)
+            llmApiKeyEditText.setText(settings.llmApiKey)
             applyGenderSelection(settings.targetGender)
             applyIpLocationSelection(settings.targetIpLocation)
         }
@@ -319,7 +322,8 @@ class MainActivity : AppCompatActivity() {
         settingsRepository.saveProfileCriteria(
             gender = selectedGender(),
             ipLocation = selectedIpLocation(),
-            profileRequirement = profileRequirementEditText.text.toString()
+            profileRequirement = profileRequirementEditText.text.toString(),
+            llmApiKey = llmApiKeyEditText.text.toString()
         )
     }
 

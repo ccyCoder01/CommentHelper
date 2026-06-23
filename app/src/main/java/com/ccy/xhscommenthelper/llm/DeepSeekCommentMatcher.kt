@@ -9,10 +9,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class DeepSeekCommentMatcher {
-    suspend fun match(requirement: String, comment: String): LlmMatchResult {
+    suspend fun match(requirement: String, comment: String, apiKey: String): LlmMatchResult {
         val normalizedRequirement = requirement.trim()
         val normalizedComment = comment.trim()
-        if (normalizedRequirement.isBlank() || normalizedComment.isBlank()) {
+        val normalizedApiKey = apiKey.trim()
+        if (normalizedRequirement.isBlank() || normalizedComment.isBlank() || normalizedApiKey.isBlank()) {
             return LlmMatchResult.NeedsConfirmation
         }
 
@@ -24,7 +25,7 @@ class DeepSeekCommentMatcher {
                     readTimeout = REQUEST_TIMEOUT_MS
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Authorization", "Bearer $API_KEY")
+                    setRequestProperty("Authorization", "Bearer $normalizedApiKey")
                 }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
@@ -101,7 +102,6 @@ class DeepSeekCommentMatcher {
 
     private companion object {
         const val API_URL = "https://api.deepseek.com/chat/completions"
-        const val API_KEY = "sk-360016f0edc4435ca0c5c2e8dfd733a3"
         const val REQUEST_TIMEOUT_MS = 15_000
 
         const val SYSTEM_PROMPT =
